@@ -110,19 +110,23 @@ function App() {
     case 'report':
       if (gapReport.isGenerating) {
         return (
-          <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center">
-            <div className="w-8 h-8 border-2 border-neutral-600 border-t-white rounded-full animate-spin mb-4" />
-            <p className="text-neutral-400">Analyzing your session...</p>
+          <div className="grain min-h-screen bg-surface-0 text-white flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-ember-600/6 blur-[100px] pointer-events-none" />
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="w-8 h-8 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin mb-6" />
+              <p className="font-display text-2xl italic text-surface-600 mb-2">Analyzing your session...</p>
+              <p className="text-surface-400 text-sm">Generating your gap report</p>
+            </div>
           </div>
         )
       }
       if (gapReport.error) {
         return (
-          <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center px-6">
-            <p className="text-red-400 mb-4">Error: {gapReport.error}</p>
+          <div className="grain min-h-screen bg-surface-0 text-white flex flex-col items-center justify-center px-6">
+            <p className="text-red-400 mb-4 text-sm">Error: {gapReport.error}</p>
             <button
               onClick={handleRestart}
-              className="px-6 py-3 bg-white text-black font-semibold rounded-xl cursor-pointer"
+              className="px-6 py-3 bg-ember-600 text-white font-semibold rounded-xl hover:bg-ember-700 transition-colors cursor-pointer"
             >
               Start Over
             </button>

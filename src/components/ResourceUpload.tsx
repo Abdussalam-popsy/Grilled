@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { motion } from 'motion/react'
 import type { Resource } from '../types'
 import { extractTextFromPDF } from '../lib/pdf'
 
@@ -11,11 +12,9 @@ interface Props {
 export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
   const [resources, setResources] = useState<Resource[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
 
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
-
+  const processFiles = useCallback(async (files: FileList) => {
     setIsProcessing(true)
     const newResources: Resource[] = []
 
@@ -37,97 +36,133 @@ export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
     setIsProcessing(false)
   }, [])
 
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) await processFiles(e.target.files)
+  }, [processFiles])
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
-    const files = e.dataTransfer.files
-    if (!files.length) return
+    setIsDragOver(false)
+    if (e.dataTransfer.files.length) await processFiles(e.dataTransfer.files)
+  }, [processFiles])
 
-    // Create a synthetic change event
-    const input = document.createElement('input')
-    input.type = 'file'
-    const dt = new DataTransfer()
-    for (const file of Array.from(files)) {
-      dt.items.add(file)
-    }
-    input.files = dt.files
-    handleFileUpload({ target: input } as unknown as React.ChangeEvent<HTMLInputElement>)
-  }, [handleFileUpload])
+  const removeResource = (index: number) => {
+    setResources(prev => prev.filter((_, i) => i !== index))
+  }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center px-6">
-      <button
+    <div className="grain min-h-screen bg-surface-0 text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-ember-600/5 blur-[100px] pointer-events-none" />
+
+      <motion.button
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
         onClick={onBack}
-        className="absolute top-6 left-6 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+        className="absolute top-8 left-8 text-surface-500 hover:text-white transition-colors cursor-pointer text-sm font-medium flex items-center gap-1.5 z-10"
       >
-        ← Back
-      </button>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        Back
+      </motion.button>
 
-      <div className="w-full max-w-lg">
-        <h2 className="text-3xl font-bold mb-2">Add your materials</h2>
-        <p className="text-neutral-400 mb-8">Upload PDFs or let Gemini find resources for you.</p>
-
-        {/* Drop zone */}
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className="border-2 border-dashed border-neutral-700 rounded-xl p-8 text-center hover:border-neutral-500 transition-colors mb-4"
+      <div className="relative z-10 w-full max-w-lg">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="text-4xl mb-3">📄</div>
-          <p className="text-neutral-400 mb-3">Drag & drop files here</p>
-          <label className="inline-block px-4 py-2 bg-neutral-800 rounded-lg cursor-pointer hover:bg-neutral-700 transition-colors text-sm">
-            Browse files
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.txt,.md"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
-        </div>
+          <h2 className="font-display text-4xl md:text-5xl italic tracking-tight mb-3">
+            Add your materials
+          </h2>
+          <p className="text-surface-500 mb-8 leading-relaxed">
+            Upload study materials, or let Gemini find what it needs.
+          </p>
+        </motion.div>
 
-        {/* Processing indicator */}
-        {isProcessing && (
-          <p className="text-neutral-400 text-sm mb-4 animate-pulse">Processing files...</p>
-        )}
-
-        {/* Uploaded resources list */}
-        {resources.length > 0 && (
-          <div className="mb-4 space-y-2">
-            {resources.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 bg-neutral-900 rounded-lg px-3 py-2 text-sm">
-                <span className="text-green-400">✓</span>
-                <span>{r.name}</span>
-                <span className="text-neutral-600 ml-auto">{r.content.length} chars</span>
-              </div>
-            ))}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+        >
+          {/* Drop zone */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={() => setIsDragOver(false)}
+            className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 ${
+              isDragOver
+                ? 'border-ember-500 bg-ember-600/5'
+                : 'border-surface-200/40 hover:border-surface-300/60'
+            }`}
+          >
+            <div className="text-3xl mb-3 opacity-60">
+              {isProcessing ? '⏳' : '📄'}
+            </div>
+            <p className="text-surface-400 text-sm mb-4">
+              {isProcessing ? 'Processing...' : 'Drop PDFs or text files here'}
+            </p>
+            <label className="inline-block px-5 py-2.5 bg-surface-100 border border-surface-200/50 rounded-lg cursor-pointer hover:bg-surface-200/50 transition-colors text-sm font-medium">
+              Browse files
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.txt,.md"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
           </div>
-        )}
 
-        <div className="flex gap-3 mt-6">
+          {/* Uploaded files */}
+          {resources.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {resources.map((r, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-3 bg-surface-50 border border-surface-200/30 rounded-lg px-4 py-3 text-sm"
+                >
+                  <span className="text-ember-500">✓</span>
+                  <span className="flex-1 truncate">{r.name}</span>
+                  <span className="text-surface-400 text-xs tabular-nums">{(r.content.length / 1000).toFixed(1)}k chars</span>
+                  <button
+                    onClick={() => removeResource(i)}
+                    className="text-surface-400 hover:text-red-400 transition-colors cursor-pointer ml-1"
+                  >
+                    ×
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
           <button
             onClick={() => onContinue(resources)}
-            className="flex-1 py-3 bg-white text-black font-semibold rounded-xl hover:bg-neutral-200 transition-all cursor-pointer"
+            className="mt-6 w-full py-3.5 bg-ember-600 text-white font-semibold rounded-xl hover:bg-ember-700 transition-all cursor-pointer text-[15px]"
           >
-            {resources.length > 0 ? 'Continue with these' : 'Skip — no materials'}
+            {resources.length > 0 ? `Continue with ${resources.length} file${resources.length > 1 ? 's' : ''}` : 'Continue without materials'}
           </button>
-        </div>
 
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-neutral-800" />
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-surface-200/30" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-surface-0 px-4 text-xs text-surface-400 uppercase tracking-wider">or</span>
+            </div>
           </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-neutral-950 px-3 text-neutral-500">or</span>
-          </div>
-        </div>
 
-        <button
-          onClick={onAutoSearch}
-          className="w-full py-3 bg-neutral-900 border border-neutral-800 text-white font-semibold rounded-xl hover:border-neutral-600 transition-all cursor-pointer"
-        >
-          🔍 Let Gemini find resources for me
-        </button>
+          <button
+            onClick={onAutoSearch}
+            className="w-full py-3.5 bg-surface-50 border border-surface-200/40 text-white font-medium rounded-xl hover:border-ember-600/30 hover:bg-surface-100/60 transition-all cursor-pointer text-[15px] flex items-center justify-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-ember-500">
+              <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Let Gemini find resources for me
+          </button>
+        </motion.div>
       </div>
     </div>
   )
