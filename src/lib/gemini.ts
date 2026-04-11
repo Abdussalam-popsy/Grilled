@@ -211,7 +211,7 @@ export async function generateGapReport(transcript: string, mode: Mode, goal: st
   "strong": [{"topic": "string", "justification": "string"}],
   "shaky": [{"topic": "string", "what_was_missing": "string"}],
   "weak": [{"topic": "string", "correct_answer": "string", "review_angle": "string"}],
-  "readiness_score": number,
+  "readiness_score": number (0-100),
   "readiness_justification": "string",
   "top_cram_topics": [{"topic": "string", "visual_description": "string"}]
 }

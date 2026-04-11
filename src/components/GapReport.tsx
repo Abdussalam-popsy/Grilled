@@ -25,16 +25,21 @@ export function GapReport({ report, onRestart }: Props) {
     })
   }, [report.top_cram_topics])
 
-  const scoreColor = report.readiness_score >= 7
-    ? 'text-green-400' : report.readiness_score >= 4
+  const score = report.readiness_score
+  const normalizedScore = score > 10 ? score / 100 : score / 10
+
+  const scoreColor = normalizedScore >= 0.7
+    ? 'text-green-400' : normalizedScore >= 0.4
     ? 'text-amber-400' : 'text-red-400'
 
-  const scoreRingColor = report.readiness_score >= 7
-    ? 'stroke-green-400' : report.readiness_score >= 4
+  const scoreRingColor = normalizedScore >= 0.7
+    ? 'stroke-green-400' : normalizedScore >= 0.4
     ? 'stroke-amber-400' : 'stroke-red-400'
 
   const circumference = 2 * Math.PI * 54
-  const progress = (report.readiness_score / 10) * circumference
+  const progress = normalizedScore * circumference
+  const displayScore = score > 10 ? score : score * 10
+  const displayMax = 100
 
   return (
     <div className="grain min-h-screen bg-surface-0 text-white relative overflow-hidden">
@@ -73,9 +78,9 @@ export function GapReport({ report, onRestart }: Props) {
                 transition={{ duration: 0.6, delay: 0.5 }}
                 className={`text-4xl font-bold tabular-nums ${scoreColor}`}
               >
-                {report.readiness_score}
+                {Math.round(displayScore)}
               </motion.span>
-              <span className="text-xs text-surface-400 mt-0.5">/ 10</span>
+              <span className="text-xs text-surface-400 mt-0.5">/ {displayMax}</span>
             </div>
           </div>
 
