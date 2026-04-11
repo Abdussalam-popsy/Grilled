@@ -26,9 +26,7 @@ export class GeminiLiveSession {
   }
 
   connect(mode: Mode, goal: string, resourceContext: string, config?: { textOnly?: boolean; systemInstruction?: string }): void {
-    const model = config?.textOnly
-      ? 'gemini-2.5-flash'
-      : 'gemini-2.5-flash-preview-native-audio-dialog'
+    const model = 'gemini-2.5-flash-native-audio-preview-12-2025'
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
 
     const label = config?.textOnly ? '[Gemini:Analyst]' : '[Gemini:Interviewer]'
