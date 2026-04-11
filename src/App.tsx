@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { AppScreen, Mode, Resource } from './types'
-import { ModeSelect } from './components/ModeSelect'
 import { GoalInput } from './components/GoalInput'
 import { ResourceUpload } from './components/ResourceUpload'
 import { ResourceConfirm } from './components/ResourceConfirm'
@@ -9,18 +8,13 @@ import { GapReport } from './components/GapReport'
 import { useGapReport } from './hooks/useGapReport'
 
 function App() {
-  const [screen, setScreen] = useState<AppScreen>('landing')
-  const [mode, setMode] = useState<Mode>('interview')
+  const [screen, setScreen] = useState<AppScreen>('goal')
+  const [mode] = useState<Mode>('interview')
   const [goal, setGoal] = useState('')
   const [resources, setResources] = useState<Resource[]>([])
   const [resourceSummary, setResourceSummary] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const gapReport = useGapReport()
-
-  const handleModeSelect = (selectedMode: Mode) => {
-    setMode(selectedMode)
-    setScreen('goal')
-  }
 
   const handleGoalSubmit = (submittedGoal: string) => {
     setGoal(submittedGoal)
@@ -58,8 +52,7 @@ function App() {
   }
 
   const handleRestart = () => {
-    setScreen('landing')
-    setMode('interview')
+    setScreen('goal')
     setGoal('')
     setResources([])
     setResourceSummary('')
@@ -67,14 +60,12 @@ function App() {
 
   switch (screen) {
     case 'landing':
-      return <ModeSelect onSelect={handleModeSelect} />
-
     case 'goal':
       return (
         <GoalInput
           mode={mode}
           onSubmit={handleGoalSubmit}
-          onBack={() => setScreen('landing')}
+          onBack={() => setScreen('goal')}
         />
       )
 
@@ -139,7 +130,13 @@ function App() {
       return null
 
     default:
-      return <ModeSelect onSelect={handleModeSelect} />
+      return (
+        <GoalInput
+          mode={mode}
+          onSubmit={handleGoalSubmit}
+          onBack={() => setScreen('goal')}
+        />
+      )
   }
 }
 

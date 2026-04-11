@@ -37,6 +37,21 @@ export interface GapReport {
   top_cram_topics: CramTopic[]
 }
 
+export interface AnswerFeedback {
+  question: string
+  accuracy: number
+  depth: number
+  clarity: number
+  strengths: string[]
+  gaps: string[]
+}
+
+export interface AnalysisState {
+  current: AnswerFeedback | null
+  history: AnswerFeedback[]
+  isAnalyzing: boolean
+}
+
 export type AppScreen = 'landing' | 'goal' | 'resources' | 'confirm' | 'session' | 'report'
 
 export interface SessionState {

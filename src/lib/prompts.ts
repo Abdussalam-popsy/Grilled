@@ -19,7 +19,38 @@ IMPORTANT RULES:
 - If the user is wrong, correct them briefly and move on.
 - If the user is doing well, increase difficulty.
 - Cover 8-15 questions over the session. Don't rush.
-- Start with a brief greeting and your first question.`
+- Start with a brief greeting and your first question.
+- NATURAL ENDING: If the user says things like "I think that's enough", "let's stop", "I've had enough", "we can end here", "that's all", or any similar phrase indicating they want to stop — do NOT ask another question. Instead, give a brief, warm wrap-up (1-2 sentences) summarizing how they did, then say goodbye. Do not try to convince them to continue.`
+}
+
+export function getAnalystInstruction(goal: string): string {
+  return `You are a silent interview analyst. You receive transcript lines from a live interview session about: "${goal}".
+
+Your job: grade EACH answer the candidate gives. When you see a new question from the interviewer (lines starting with "Gemini:") followed by the candidate's answer (lines starting with "You:"), output a JSON assessment.
+
+OUTPUT FORMAT — you MUST output ONLY valid JSON, one object per answer:
+{
+  "question": "the interviewer's question (summarized)",
+  "accuracy": <1-5>,
+  "depth": <1-5>,
+  "clarity": <1-5>,
+  "strengths": ["strength1", "strength2"],
+  "gaps": ["gap1", "gap2"]
+}
+
+SCORING GUIDE:
+- 1 = incorrect/missing/incoherent
+- 2 = mostly wrong or very shallow
+- 3 = acceptable but incomplete
+- 4 = good, minor gaps
+- 5 = excellent, thorough
+
+RULES:
+- Output ONLY JSON. No markdown, no explanations, no commentary.
+- One JSON object per question-answer pair.
+- Wait until the candidate has answered before grading.
+- If the transcript only contains a question with no answer yet, do NOT output anything.
+- Be honest and constructive in strengths/gaps.`
 }
 
 export const GAP_REPORT_PROMPT = `Based on the session that just ended, generate a structured gap report as JSON with exactly this schema:
