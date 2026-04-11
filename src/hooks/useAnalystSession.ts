@@ -45,8 +45,8 @@ export function useAnalystSession(): UseAnalystSessionReturn {
             }
             return { parsed: tip, remaining: buffer.slice(i + 1) }
           }
-        } catch {
-          // Not valid JSON yet
+        } catch (parseErr) {
+          console.error('[Analyst] JSON parse error:', parseErr)
         }
         return { parsed: null, remaining: buffer.slice(i + 1) }
       }
@@ -58,6 +58,7 @@ export function useAnalystSession(): UseAnalystSessionReturn {
   const connect = useCallback((goal: string) => {
     const session = new GeminiLiveSession({
       onTextOutput: (text) => {
+        console.log('[Analyst] Received text:', text.slice(0, 100))
         textBufferRef.current += text
         const { parsed, remaining } = tryParseJSON(textBufferRef.current)
         textBufferRef.current = remaining

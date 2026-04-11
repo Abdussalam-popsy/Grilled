@@ -27,7 +27,7 @@ export class GeminiLiveSession {
 
   connect(mode: Mode, goal: string, resourceContext: string, config?: { textOnly?: boolean; systemInstruction?: string; userName?: string }): void {
     const model = config?.textOnly
-      ? 'gemini-2.5-flash'
+      ? 'gemini-2.0-flash-live-001'
       : 'gemini-2.5-flash-native-audio-preview-12-2025'
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
 
@@ -80,7 +80,7 @@ export class GeminiLiveSession {
         const data = JSON.parse(raw)
         this.handleMessage(data)
       } catch (err) {
-        console.error('[Gemini] Failed to parse message:', err)
+        console.error(`${label} Failed to parse message:`, err)
       }
     }
 
