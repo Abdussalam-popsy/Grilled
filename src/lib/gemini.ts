@@ -7,8 +7,9 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 // Docs: https://ai.google.dev/gemini-api/docs/live
 
 export interface GeminiLiveCallbacks {
-  onAudioOutput?: (audioData: string) => void   // base64 PCM audio
+  onAudioOutput?: (audioData: string) => void
   onTextOutput?: (text: string) => void
+  onTranscript?: (text: string, isUser: boolean) => void
   onInterrupted?: () => void
   onError?: (error: string) => void
   onClose?: () => void
@@ -25,29 +26,33 @@ export class GeminiLiveSession {
   }
 
   connect(mode: Mode, goal: string, resourceContext: string): void {
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025'
+    const model = 'gemini-2.5-flash-preview-native-audio-dialog'
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
 
+    console.log('[Gemini] Connecting to Live API...')
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
+      console.log('[Gemini] WebSocket open, sending setup...')
       const setupMessage = {
         setup: {
           model: `models/${model}`,
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: 'Aoede'
+          generation_config: {
+            response_modalities: ['AUDIO'],
+            speech_config: {
+              voice_config: {
+                prebuilt_voice_config: {
+                  voice_name: 'Aoede'
                 }
               }
             }
           },
-          systemInstruction: {
+          system_instruction: {
             parts: [{ text: getSystemInstruction(mode, goal, resourceContext) }]
           },
-          tools: [{ googleSearch: {} }]
+          tools: [{ google_search: {} }],
+          output_audio_transcription: {},
+          input_audio_transcription: {},
         }
       }
       this.ws?.send(JSON.stringify(setupMessage))
@@ -55,19 +60,23 @@ export class GeminiLiveSession {
 
     this.ws.onmessage = async (event) => {
       try {
+        // Partner fix: handle Blob responses from WebSocket
         const raw = event.data instanceof Blob ? await event.data.text() : event.data
         const data = JSON.parse(raw)
         this.handleMessage(data)
-      } catch (e) {
-        console.error('Failed to parse Gemini message:', e)
+      } catch (err) {
+        console.error('[Gemini] Failed to parse message:', err)
       }
     }
 
-    this.ws.onerror = () => {
-      this.callbacks.onError?.('WebSocket connection error')
+    this.ws.onerror = (event) => {
+      console.error('[Gemini] WebSocket error:', event)
+      this.callbacks.onError?.('WebSocket connection error — check your API key and network')
     }
 
     this.ws.onclose = (event) => {
+      console.log('[Gemini] WebSocket closed:', event.code, event.reason)
+      // Partner fix: surface error if closed before setup completed
       if (!this.isSetupComplete) {
         this.callbacks.onError?.(`Connection closed before setup completed (code: ${event.code})`)
       }
@@ -77,11 +86,13 @@ export class GeminiLiveSession {
 
   private handleMessage(data: Record<string, unknown>): void {
     if ('setupComplete' in data) {
+      console.log('[Gemini] Setup complete, ready for streaming')
       this.isSetupComplete = true
       this.callbacks.onReady?.()
       return
     }
 
+    // Partner fix: handle server error messages
     if ('error' in data) {
       const err = data.error as Record<string, unknown>
       this.callbacks.onError?.(err.message as string ?? 'Unknown server error')
@@ -95,17 +106,28 @@ export class GeminiLiveSession {
         return
       }
 
-      const parts = (serverContent.modelTurn as Record<string, unknown>)?.parts as Array<Record<string, unknown>> | undefined
-      if (parts) {
+      const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
+      if (modelTurn?.parts) {
+        const parts = modelTurn.parts as Array<Record<string, unknown>>
         for (const part of parts) {
           if (part.text) {
             this.callbacks.onTextOutput?.(part.text as string)
           }
           const inlineData = part.inlineData as Record<string, string> | undefined
-          if (inlineData?.mimeType?.startsWith('audio/')) {
+          if (inlineData?.mimeType?.startsWith('audio/') || inlineData?.mime_type?.startsWith('audio/')) {
             this.callbacks.onAudioOutput?.(inlineData.data)
           }
         }
+      }
+
+      const outputTranscription = serverContent.outputTranscription as Record<string, string> | undefined
+      if (outputTranscription?.text) {
+        this.callbacks.onTranscript?.(outputTranscription.text, false)
+      }
+
+      const inputTranscription = serverContent.inputTranscription as Record<string, string> | undefined
+      if (inputTranscription?.text) {
+        this.callbacks.onTranscript?.(inputTranscription.text, true)
       }
     }
   }
@@ -113,9 +135,9 @@ export class GeminiLiveSession {
   sendAudio(base64Audio: string): void {
     if (!this.ws || !this.isSetupComplete) return
     this.ws.send(JSON.stringify({
-      realtimeInput: {
-        mediaChunks: [{
-          mimeType: 'audio/pcm;rate=16000',
+      realtime_input: {
+        media_chunks: [{
+          mime_type: 'audio/pcm',
           data: base64Audio
         }]
       }
@@ -125,9 +147,9 @@ export class GeminiLiveSession {
   sendVideoFrame(base64Image: string): void {
     if (!this.ws || !this.isSetupComplete) return
     this.ws.send(JSON.stringify({
-      realtimeInput: {
-        mediaChunks: [{
-          mimeType: 'image/jpeg',
+      realtime_input: {
+        media_chunks: [{
+          mime_type: 'image/jpeg',
           data: base64Image
         }]
       }
@@ -137,9 +159,9 @@ export class GeminiLiveSession {
   sendText(text: string): void {
     if (!this.ws || !this.isSetupComplete) return
     this.ws.send(JSON.stringify({
-      clientContent: {
+      client_content: {
         turns: [{ role: 'user', parts: [{ text }] }],
-        turnComplete: true
+        turn_complete: true
       }
     }))
   }
@@ -192,6 +214,47 @@ Return ONLY valid JSON. No markdown fences, no extra text.`
     })
   })
 
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Gemini API error ${response.status}: ${errorText}`)
+  }
+
   const result = await response.json()
-  return result.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) {
+    throw new Error('Empty response from Gemini')
+  }
+  return text
+}
+
+// Gemini image generation
+export async function generateStudyImage(prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE']
+      }
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Image generation error: ${response.status}`)
+  }
+
+  const result = await response.json()
+  const parts = result.candidates?.[0]?.content?.parts ?? []
+  for (const part of parts) {
+    if (part.inlineData?.mimeType?.startsWith('image/')) {
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+    }
+  }
+
+  throw new Error('No image in response')
 }

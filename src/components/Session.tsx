@@ -200,6 +200,24 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
           <div className="absolute top-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md text-xs text-surface-600 font-medium">
             {mode === 'interview' ? '💼 Interview' : '📚 Exam'}
           </div>
+
+          {/* Observation indicators — shows Gemini is watching */}
+          {gemini.isReady && (
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md">
+                <div className="w-1.5 h-1.5 rounded-full bg-ember-500 animate-pulse" />
+                <span className="text-[10px] text-ember-400/80 uppercase tracking-wider font-medium">Observing</span>
+              </div>
+              <div className="flex gap-2">
+                <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md text-[10px] text-surface-500 uppercase tracking-wider">
+                  Eye contact
+                </div>
+                <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md text-[10px] text-surface-500 uppercase tracking-wider">
+                  Confidence
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Waveform */}
