@@ -51,7 +51,6 @@ export class GeminiLiveSession {
             parts: [{ text: getSystemInstruction(mode, goal, resourceContext) }]
           },
           tools: [{ google_search: {} }],
-          // Enable transcriptions so we can build the gap report from text
           output_audio_transcription: {},
           input_audio_transcription: {},
         }
@@ -59,9 +58,11 @@ export class GeminiLiveSession {
       this.ws?.send(JSON.stringify(setupMessage))
     }
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = async (event) => {
       try {
-        const data = JSON.parse(event.data)
+        // Partner fix: handle Blob responses from WebSocket
+        const raw = event.data instanceof Blob ? await event.data.text() : event.data
+        const data = JSON.parse(raw)
         this.handleMessage(data)
       } catch (err) {
         console.error('[Gemini] Failed to parse message:', err)
@@ -75,12 +76,15 @@ export class GeminiLiveSession {
 
     this.ws.onclose = (event) => {
       console.log('[Gemini] WebSocket closed:', event.code, event.reason)
+      // Partner fix: surface error if closed before setup completed
+      if (!this.isSetupComplete) {
+        this.callbacks.onError?.(`Connection closed before setup completed (code: ${event.code})`)
+      }
       this.callbacks.onClose?.()
     }
   }
 
   private handleMessage(data: Record<string, unknown>): void {
-    // Setup complete
     if ('setupComplete' in data) {
       console.log('[Gemini] Setup complete, ready for streaming')
       this.isSetupComplete = true
@@ -88,7 +92,13 @@ export class GeminiLiveSession {
       return
     }
 
-    // Server content (audio/text responses)
+    // Partner fix: handle server error messages
+    if ('error' in data) {
+      const err = data.error as Record<string, unknown>
+      this.callbacks.onError?.(err.message as string ?? 'Unknown server error')
+      return
+    }
+
     const serverContent = data.serverContent as Record<string, unknown> | undefined
     if (serverContent) {
       if (serverContent.interrupted) {
@@ -96,7 +106,6 @@ export class GeminiLiveSession {
         return
       }
 
-      // Model audio/text turn
       const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
       if (modelTurn?.parts) {
         const parts = modelTurn.parts as Array<Record<string, unknown>>
@@ -111,13 +120,11 @@ export class GeminiLiveSession {
         }
       }
 
-      // Output audio transcription (what Gemini said, as text)
       const outputTranscription = serverContent.outputTranscription as Record<string, string> | undefined
       if (outputTranscription?.text) {
         this.callbacks.onTranscript?.(outputTranscription.text, false)
       }
 
-      // Input audio transcription (what user said, as text)
       const inputTranscription = serverContent.inputTranscription as Record<string, string> | undefined
       if (inputTranscription?.text) {
         this.callbacks.onTranscript?.(inputTranscription.text, true)
@@ -173,7 +180,7 @@ export class GeminiLiveSession {
 
 // Standard Gemini API call for gap report generation
 export async function generateGapReport(transcript: string, mode: Mode, goal: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
   const response = await fetch(url, {
     method: 'POST',
@@ -196,7 +203,7 @@ export async function generateGapReport(transcript: string, mode: Mode, goal: st
   "top_cram_topics": [{"topic": "string", "visual_description": "string"}]
 }
 
-For visual_description use: "Clean, minimal educational diagram explaining [topic]. Style: textbook illustration, white background, labelled clearly. Concept: [specific gap]. No text longer than 5 words per label."
+For visual_description, write an image generation prompt. Describe a simple visual metaphor or conceptual scene — NOT a diagram with labels or text. Focus on objects, colors, spatial relationships, and visual analogies that represent the concept. Style: clean 3D render or flat illustration on a solid background. Example: for "load balancing" use "A central glowing sphere distributing streams of light evenly to five smaller orbs arranged in a semicircle, dark background, soft blue and white tones". NEVER include readable text, labels, arrows, or annotations in the description.
 
 Return ONLY valid JSON. No markdown fences, no extra text.`
         }]
@@ -220,7 +227,7 @@ Return ONLY valid JSON. No markdown fences, no extra text.`
   return text
 }
 
-// Gemini image generation (replaces fal)
+// Gemini image generation
 export async function generateStudyImage(prompt: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`
 
@@ -245,7 +252,6 @@ export async function generateStudyImage(prompt: string): Promise<string> {
   const parts = result.candidates?.[0]?.content?.parts ?? []
   for (const part of parts) {
     if (part.inlineData?.mimeType?.startsWith('image/')) {
-      // Return as data URL
       return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
     }
   }
