@@ -1,7 +1,8 @@
 const FAL_API_KEY = import.meta.env.VITE_FAL_API_KEY
+const FAL_MODEL = 'fal-ai/flux/dev'
 
 export async function generateStudyAidImage(prompt: string): Promise<string> {
-  const response = await fetch('https://queue.fal.run/fal-ai/fast-sdxl', {
+  const response = await fetch(`https://queue.fal.run/${FAL_MODEL}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -10,8 +11,9 @@ export async function generateStudyAidImage(prompt: string): Promise<string> {
     body: JSON.stringify({
       prompt,
       image_size: 'landscape_16_9',
-      num_inference_steps: 25,
+      num_inference_steps: 28,
       num_images: 1,
+      guidance_scale: 3.5,
     })
   })
 
@@ -21,13 +23,11 @@ export async function generateStudyAidImage(prompt: string): Promise<string> {
 
   const data = await response.json()
 
-  // fal queue API returns request_id for async processing
   const requestId = data.request_id
   if (requestId) {
     return pollFalResult(requestId)
   }
 
-  // Direct response
   return data.images?.[0]?.url ?? ''
 }
 
@@ -36,13 +36,13 @@ async function pollFalResult(requestId: string): Promise<string> {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, 2000))
 
-    const response = await fetch(`https://queue.fal.run/fal-ai/fast-sdxl/requests/${requestId}/status`, {
+    const response = await fetch(`https://queue.fal.run/${FAL_MODEL}/requests/${requestId}/status`, {
       headers: { 'Authorization': `Key ${FAL_API_KEY}` }
     })
     const status = await response.json()
 
     if (status.status === 'COMPLETED') {
-      const resultResponse = await fetch(`https://queue.fal.run/fal-ai/fast-sdxl/requests/${requestId}`, {
+      const resultResponse = await fetch(`https://queue.fal.run/${FAL_MODEL}/requests/${requestId}`, {
         headers: { 'Authorization': `Key ${FAL_API_KEY}` }
       })
       const result = await resultResponse.json()

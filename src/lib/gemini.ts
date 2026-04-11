@@ -25,13 +25,12 @@ export class GeminiLiveSession {
   }
 
   connect(mode: Mode, goal: string, resourceContext: string): void {
-    const model = 'gemini-2.0-flash-live-001'
+    const model = 'gemini-2.5-flash-native-audio-preview-12-2025'
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
 
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      // Send setup message
       const setupMessage = {
         setup: {
           model: `models/${model}`,
@@ -54,12 +53,13 @@ export class GeminiLiveSession {
       this.ws?.send(JSON.stringify(setupMessage))
     }
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = async (event) => {
       try {
-        const data = JSON.parse(event.data)
+        const raw = event.data instanceof Blob ? await event.data.text() : event.data
+        const data = JSON.parse(raw)
         this.handleMessage(data)
-      } catch {
-        console.error('Failed to parse Gemini message')
+      } catch (e) {
+        console.error('Failed to parse Gemini message:', e)
       }
     }
 
@@ -67,20 +67,27 @@ export class GeminiLiveSession {
       this.callbacks.onError?.('WebSocket connection error')
     }
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
+      if (!this.isSetupComplete) {
+        this.callbacks.onError?.(`Connection closed before setup completed (code: ${event.code})`)
+      }
       this.callbacks.onClose?.()
     }
   }
 
   private handleMessage(data: Record<string, unknown>): void {
-    // Setup complete
     if ('setupComplete' in data) {
       this.isSetupComplete = true
       this.callbacks.onReady?.()
       return
     }
 
-    // Server content (audio/text responses)
+    if ('error' in data) {
+      const err = data.error as Record<string, unknown>
+      this.callbacks.onError?.(err.message as string ?? 'Unknown server error')
+      return
+    }
+
     const serverContent = data.serverContent as Record<string, unknown> | undefined
     if (serverContent) {
       if (serverContent.interrupted) {
@@ -151,7 +158,7 @@ export class GeminiLiveSession {
 
 // Standard Gemini API call for gap report generation
 export async function generateGapReport(transcript: string, mode: Mode, goal: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
   const response = await fetch(url, {
     method: 'POST',
@@ -174,7 +181,7 @@ export async function generateGapReport(transcript: string, mode: Mode, goal: st
   "top_cram_topics": [{"topic": "string", "visual_description": "string"}]
 }
 
-For visual_description use: "Clean, minimal educational diagram explaining [topic]. Style: textbook illustration, white background, labelled clearly. Concept: [specific gap]. No text longer than 5 words per label."
+For visual_description, write an image generation prompt. Describe a simple visual metaphor or conceptual scene — NOT a diagram with labels or text. Focus on objects, colors, spatial relationships, and visual analogies that represent the concept. Style: clean 3D render or flat illustration on a solid background. Example: for "load balancing" use "A central glowing sphere distributing streams of light evenly to five smaller orbs arranged in a semicircle, dark background, soft blue and white tones". NEVER include readable text, labels, arrows, or annotations in the description.
 
 Return ONLY valid JSON. No markdown fences, no extra text.`
         }]

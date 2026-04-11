@@ -2,7 +2,7 @@ const GRADIUM_API_KEY = import.meta.env.VITE_GRADIUM_API_KEY
 
 export async function generateVoiceDebrief(text: string): Promise<string> {
   // Gradium TTS API - generates audio from text
-  const response = await fetch('https://api.gradium.ai/v1/tts', {
+  const response = await fetch('/api/gradium/v1/tts', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
