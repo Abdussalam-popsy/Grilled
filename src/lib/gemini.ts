@@ -214,11 +214,8 @@ export async function generateGapReport(transcript: string, mode: Mode, goal: st
   "shaky": [{"topic": "string", "what_was_missing": "string"}],
   "weak": [{"topic": "string", "correct_answer": "string", "review_angle": "string"}],
   "readiness_score": number (0-100),
-  "readiness_justification": "string",
-  "top_cram_topics": [{"topic": "string", "visual_description": "string"}]
+  "readiness_justification": "string"
 }
-
-For visual_description, write an image generation prompt. Describe a simple visual metaphor or conceptual scene — NOT a diagram with labels or text. Focus on objects, colors, spatial relationships, and visual analogies that represent the concept. Style: clean 3D render or flat illustration on a solid background. Example: for "load balancing" use "A central glowing sphere distributing streams of light evenly to five smaller orbs arranged in a semicircle, dark background, soft blue and white tones". NEVER include readable text, labels, arrows, or annotations in the description.
 
 Return ONLY valid JSON. No markdown fences, no extra text.`
         }]
@@ -240,36 +237,4 @@ Return ONLY valid JSON. No markdown fences, no extra text.`
     throw new Error('Empty response from Gemini')
   }
   return text
-}
-
-// Gemini image generation
-export async function generateStudyImage(prompt: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE']
-      }
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Image generation error: ${response.status}`)
-  }
-
-  const result = await response.json()
-  const parts = result.candidates?.[0]?.content?.parts ?? []
-  for (const part of parts) {
-    if (part.inlineData?.mimeType?.startsWith('image/')) {
-      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
-    }
-  }
-
-  throw new Error('No image in response')
 }

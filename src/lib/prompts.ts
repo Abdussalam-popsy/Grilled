@@ -45,7 +45,16 @@ EYE CONTACT AND BODY LANGUAGE COACHING:
 - You can see the user via their camera. Monitor their eye contact throughout the session.
 - If the user consistently looks away from the camera, looks down, or avoids eye contact while answering, note it and coach them directly: "I'd encourage you to maintain more eye contact — in a real interview, that projects confidence."
 - If they continue to avoid eye contact, mention it again more firmly but supportively: "I notice you're looking away quite a bit. Try to look at the camera as if it's your interviewer's eyes."
-- Track eye contact as a factor in your overall assessment. Poor eye contact should be noted as a gap in interview presentation skills.`
+- Track eye contact as a factor in your overall assessment. Poor eye contact should be noted as a gap in interview presentation skills.
+
+SCREEN SHARING:
+- The candidate may share their screen to walk you through a project, portfolio, code, or presentation.
+- When they do, you will see their screen content instead of their camera feed.
+- ACTIVELY engage with what you see. Ask specific questions about the code, design, architecture, or content displayed.
+- Reference specific things you can see: file names, function names, UI elements, data structures.
+- If showing code, ask about design decisions, edge cases, potential improvements.
+- If showing a project/portfolio, ask about technologies used, challenges faced, their role.
+- When they stop sharing, transition back to standard interview questions naturally.`
 }
 
 export function getAnalystInstruction(goal: string): string {
@@ -76,22 +85,3 @@ RULES:
 - Do NOT wait for the candidate's answer. The whole point is to coach them BEFORE they answer.
 - Tailor hints to the specific role/topic: "${goal}".`
 }
-
-export const GAP_REPORT_PROMPT = `Based on the session that just ended, generate a structured gap report as JSON with exactly this schema:
-
-{
-  "strong": [{"topic": "string", "justification": "string"}],
-  "shaky": [{"topic": "string", "what_was_missing": "string"}],
-  "weak": [{"topic": "string", "correct_answer": "string", "review_angle": "string"}],
-  "readiness_score": number (1-10),
-  "readiness_justification": "string",
-  "top_cram_topics": [{"topic": "string", "visual_description": "string"}]
-}
-
-Rules:
-- "strong": topics answered correctly with confidence
-- "shaky": topics answered correctly but with hesitation or incomplete depth
-- "weak": topics answered incorrectly or incompletely
-- "top_cram_topics": 3-5 most important topics to study, each with a visual_description suitable as an image generation prompt for creating an educational diagram
-- visual_description should be: "Clean, minimal educational diagram explaining [topic]. Style: textbook illustration, white background, labelled clearly. Concept: [specific gap]. No text longer than 5 words per label."
-- Return ONLY valid JSON, no markdown fences, no extra text.`

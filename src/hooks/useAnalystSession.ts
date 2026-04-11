@@ -31,6 +31,7 @@ export function useAnalystSession(): UseAnalystSessionReturn {
     goalRef.current = goal
     activeRef.current = true
     setIsReady(true)
+    setError(null)
     console.log('[Analyst] Ready (REST mode)')
   }, [])
 
@@ -68,7 +69,13 @@ export function useAnalystSession(): UseAnalystSessionReturn {
         }),
       })
 
-      if (!resp.ok) throw new Error(`Analyst API error: ${resp.status}`)
+      if (!resp.ok) {
+        const errorText = await resp.text()
+        console.error('[Analyst] API error:', resp.status, errorText)
+        setError(`Coaching API error: ${resp.status}`)
+        setAnalysis(prev => ({ ...prev, isThinking: false }))
+        return
+      }
 
       const result = await resp.json()
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text
@@ -89,6 +96,7 @@ export function useAnalystSession(): UseAnalystSessionReturn {
           history: [...prev.history, tip],
           isThinking: false,
         }))
+        setError(null)
       } else {
         setAnalysis(prev => ({ ...prev, isThinking: false }))
       }

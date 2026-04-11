@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { AppScreen, Mode, AnswerFeedback } from './types'
+import type { AppScreen, Mode, CoachingTip } from './types'
 import { ProfileSetup } from './components/ProfileSetup'
 import { GoalInput } from './components/GoalInput'
 import { ResourceConfirm } from './components/ResourceConfirm'
@@ -14,7 +14,7 @@ function App() {
   const [goal, setGoal] = useState('')
   const [userName, setUserName] = useState('')
   const [resumeContext, setResumeContext] = useState('')
-  const [feedbackHistory, setFeedbackHistory] = useState<AnswerFeedback[]>([])
+  const [coachingHistory, setCoachingHistory] = useState<CoachingTip[]>([])
   const [sessionDuration, setSessionDuration] = useState(0)
   const gapReport = useGapReport()
 
@@ -29,8 +29,8 @@ function App() {
     setScreen('confirm')
   }
 
-  const handleSessionEnd = async (transcript: string[], history: AnswerFeedback[], duration: number) => {
-    setFeedbackHistory(history)
+  const handleSessionEnd = async (transcript: string[], history: CoachingTip[], duration: number) => {
+    setCoachingHistory(history)
     setSessionDuration(duration)
     setScreen('report')
     await gapReport.generate(transcript, mode, goal)
@@ -38,26 +38,16 @@ function App() {
 
   // Save to localStorage once the report is ready
   const handleReportReady = (readinessScore: number) => {
-    const avgAccuracy = feedbackHistory.length > 0
-      ? feedbackHistory.reduce((sum, f) => sum + f.accuracy, 0) / feedbackHistory.length
-      : 0
-    const avgDepth = feedbackHistory.length > 0
-      ? feedbackHistory.reduce((sum, f) => sum + f.depth, 0) / feedbackHistory.length
-      : 0
-    const avgClarity = feedbackHistory.length > 0
-      ? feedbackHistory.reduce((sum, f) => sum + f.clarity, 0) / feedbackHistory.length
-      : 0
-
     saveSession({
       date: new Date().toISOString(),
       goal,
       role: goal,
       readinessScore,
-      avgAccuracy: Math.round(avgAccuracy * 10) / 10,
-      avgDepth: Math.round(avgDepth * 10) / 10,
-      avgClarity: Math.round(avgClarity * 10) / 10,
+      avgAccuracy: 0,
+      avgDepth: 0,
+      avgClarity: 0,
       duration: sessionDuration,
-      questionCount: feedbackHistory.length,
+      questionCount: coachingHistory.length,
     })
   }
 
@@ -66,7 +56,7 @@ function App() {
     setGoal('')
     setUserName('')
     setResumeContext('')
-    setFeedbackHistory([])
+    setCoachingHistory([])
     setSessionDuration(0)
   }
 
@@ -140,7 +130,6 @@ function App() {
         return (
           <GapReport
             report={gapReport.report}
-            feedbackHistory={feedbackHistory}
             sessionDuration={sessionDuration}
             userName={userName}
             onRestart={handleRestart}

@@ -34,7 +34,7 @@ export interface GapReport {
   weak: WeakTopic[]
   readiness_score: number
   readiness_justification: string
-  top_cram_topics: CramTopic[]
+  top_cram_topics?: CramTopic[]
 }
 
 export interface AnswerFeedback {

@@ -110,8 +110,8 @@ export function AnalysisPanel({ analysis, isConnected, error }: Props) {
                   <div className="w-10 h-10 rounded-full border border-surface-200/30 flex items-center justify-center mb-4">
                     <div className="w-3 h-3 rounded-full bg-surface-300/40" />
                   </div>
-                  <p className="text-sm text-surface-400 mb-1">Waiting for first answer...</p>
-                  <p className="text-xs text-surface-300">Scores will appear here in real-time</p>
+                  <p className="text-sm text-surface-400 mb-1">Waiting for first question...</p>
+                  <p className="text-xs text-surface-300">Hints will appear here to help you answer</p>
                 </>
               )}
             </motion.div>
