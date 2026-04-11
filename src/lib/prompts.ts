@@ -47,33 +47,30 @@ EYE CONTACT AND BODY LANGUAGE COACHING:
 }
 
 export function getAnalystInstruction(goal: string): string {
-  return `You are a silent interview analyst. You receive transcript lines from a live interview session about: "${goal}".
+  return `You are a silent interview coach. You receive transcript lines from a live mock interview about: "${goal}".
 
-Your job: grade EACH answer the candidate gives. When you see a new question from the interviewer (lines starting with "Gemini:") followed by the candidate's answer (lines starting with "You:"), output a JSON assessment.
+Your job: the MOMENT you see a new question from the interviewer (lines starting with "Gemini:"), immediately output coaching hints so the candidate knows what to cover in their answer. Do NOT wait for the candidate to answer — give hints AS SOON as you see the question.
 
-OUTPUT FORMAT — you MUST output ONLY valid JSON, one object per answer:
+OUTPUT FORMAT — you MUST output ONLY valid JSON, one object per question:
 {
-  "question": "the interviewer's question (summarized)",
-  "accuracy": <1-5>,
-  "depth": <1-5>,
-  "clarity": <1-5>,
-  "strengths": ["strength1", "strength2"],
-  "gaps": ["gap1", "gap2"]
+  "question": "the interviewer's question (brief summary)",
+  "hints": ["concise actionable pointer 1", "concise actionable pointer 2", "concise actionable pointer 3"],
+  "key_terms": ["term1", "term2"]
 }
 
-SCORING GUIDE:
-- 1 = incorrect/missing/incoherent
-- 2 = mostly wrong or very shallow
-- 3 = acceptable but incomplete
-- 4 = good, minor gaps
-- 5 = excellent, thorough
+HINT WRITING GUIDE:
+- Each hint should be 5-15 words — short enough to glance at while speaking
+- Be specific and actionable: "Mention React's virtual DOM diffing" not "Talk about React"
+- Include concrete examples, frameworks, or techniques the candidate should reference
+- 2-4 hints per question, ordered by importance
+- key_terms: 2-4 technical terms or buzzwords the candidate should try to mention
 
 RULES:
 - Output ONLY JSON. No markdown, no explanations, no commentary.
-- One JSON object per question-answer pair.
-- Wait until the candidate has answered before grading.
-- If the transcript only contains a question with no answer yet, do NOT output anything.
-- Be honest and constructive in strengths/gaps.`
+- One JSON object per question. Output it IMMEDIATELY when you see a Gemini: question line.
+- Do NOT wait for the candidate's answer. The whole point is to coach them BEFORE they answer.
+- If transcript lines are just greetings or small talk (not a real question), do NOT output anything.
+- Tailor hints to the specific role/topic: "${goal}".`
 }
 
 export const GAP_REPORT_PROMPT = `Based on the session that just ended, generate a structured gap report as JSON with exactly this schema:

@@ -9,32 +9,32 @@ interface Props {
 }
 
 export function GapReport({ report, onRestart }: Props) {
-  const [cramImages, setCramImages] = useState<Record<string, string>>({})
-  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
+  // const [cramImages, setCramImages] = useState<Record<string, string>>({})
+  // const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
 
   // Generate images for cram topics using Gemini
-  useEffect(() => {
-    report.top_cram_topics.forEach(async (topic) => {
-      try {
-        const url = await generateStudyImage(topic.visual_description)
-        setCramImages(prev => ({ ...prev, [topic.topic]: url }))
-      } catch (err) {
-        console.error(`Failed to generate image for ${topic.topic}:`, err)
-        setImageErrors(prev => ({ ...prev, [topic.topic]: true }))
-      }
-    })
-  }, [report.top_cram_topics])
+  // useEffect(() => {
+  //   report.top_cram_topics.forEach(async (topic) => {
+  //     try {
+  //       const url = await generateStudyImage(topic.visual_description)
+  //       setCramImages(prev => ({ ...prev, [topic.topic]: url }))
+  //     } catch (err) {
+  //       console.error(`Failed to generate image for ${topic.topic}:`, err)
+  //       setImageErrors(prev => ({ ...prev, [topic.topic]: true }))
+  //     }
+  //   })
+  // }, [report.top_cram_topics])
 
   const score = report.readiness_score
   const normalizedScore = score > 10 ? score / 100 : score / 10
 
   const scoreColor = normalizedScore >= 0.7
     ? 'text-green-400' : normalizedScore >= 0.4
-    ? 'text-amber-400' : 'text-red-400'
+      ? 'text-amber-400' : 'text-red-400'
 
   const scoreRingColor = normalizedScore >= 0.7
     ? 'stroke-green-400' : normalizedScore >= 0.4
-    ? 'stroke-amber-400' : 'stroke-red-400'
+      ? 'stroke-amber-400' : 'stroke-red-400'
 
   const circumference = 2 * Math.PI * 54
   const progress = normalizedScore * circumference
@@ -190,7 +190,7 @@ export function GapReport({ report, onRestart }: Props) {
         )}
 
         {/* Visual cram cards */}
-        {report.top_cram_topics.length > 0 && (
+        {/* {report.top_cram_topics.length > 0 && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -237,7 +237,7 @@ export function GapReport({ report, onRestart }: Props) {
               ))}
             </div>
           </motion.section>
-        )}
+        )} */}
 
         {/* Restart */}
         <motion.div

@@ -5,6 +5,7 @@ import type { Mode } from '../types'
 interface AudioPlayerState {
   audioContext: AudioContext | null
   nextStartTime: number
+  activeSources: AudioBufferSourceNode[]
 }
 
 interface UseGeminiSessionReturn {
@@ -21,7 +22,7 @@ interface UseGeminiSessionReturn {
 
 export function useGeminiSession(): UseGeminiSessionReturn {
   const sessionRef = useRef<GeminiLiveSession | null>(null)
-  const audioPlayerRef = useRef<AudioPlayerState>({ audioContext: null, nextStartTime: 0 })
+  const audioPlayerRef = useRef<AudioPlayerState>({ audioContext: null, nextStartTime: 0, activeSources: [] })
   const [isConnected, setIsConnected] = useState(false)
   const [isReady, setIsReady] = useState(false)
   const [transcript, setTranscript] = useState<string[]>([])
@@ -59,12 +60,18 @@ export function useGeminiSession(): UseGeminiSessionReturn {
     source.buffer = audioBuffer
     source.connect(ctx.destination)
 
+    source.onended = () => {
+      const idx = player.activeSources.indexOf(source)
+      if (idx !== -1) player.activeSources.splice(idx, 1)
+    }
+
     const now = ctx.currentTime
     if (player.nextStartTime < now) {
       player.nextStartTime = now
     }
     source.start(player.nextStartTime)
     player.nextStartTime += audioBuffer.duration
+    player.activeSources.push(source)
   }, [])
 
   const connect = useCallback((mode: Mode, goal: string, resourceContext: string) => {
@@ -121,6 +128,8 @@ export function useGeminiSession(): UseGeminiSessionReturn {
       },
       onInterrupted: () => {
         const player = audioPlayerRef.current
+        player.activeSources.forEach(s => { try { s.stop() } catch {} })
+        player.activeSources = []
         if (player.audioContext) {
           player.nextStartTime = player.audioContext.currentTime
         }
@@ -140,6 +149,8 @@ export function useGeminiSession(): UseGeminiSessionReturn {
     setIsReady(false)
 
     const player = audioPlayerRef.current
+    player.activeSources.forEach(s => { try { s.stop() } catch {} })
+    player.activeSources = []
     if (player.audioContext) {
       player.audioContext.close()
       player.audioContext = null

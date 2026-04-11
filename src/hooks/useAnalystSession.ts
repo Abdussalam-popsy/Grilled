@@ -1,10 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { GeminiLiveSession } from '../lib/gemini'
 import { getAnalystInstruction } from '../lib/prompts'
-import type { AnswerFeedback, AnalysisState } from '../types'
+import type { CoachingTip, CoachingState } from '../types'
 
 interface UseAnalystSessionReturn {
-  analysis: AnalysisState
+  analysis: CoachingState
   connect: (goal: string) => void
   feedTranscript: (lines: string[]) => void
   disconnect: () => void
@@ -16,18 +16,16 @@ export function useAnalystSession(): UseAnalystSessionReturn {
   const sessionRef = useRef<GeminiLiveSession | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [analysis, setAnalysis] = useState<AnalysisState>({
+  const [analysis, setAnalysis] = useState<CoachingState>({
     current: null,
     history: [],
-    isAnalyzing: false,
+    isThinking: false,
   })
 
-  // Accumulate text fragments for JSON parsing
   const textBufferRef = useRef('')
   const lastFedIndexRef = useRef(0)
 
-  const tryParseJSON = useCallback((buffer: string): { parsed: AnswerFeedback | null; remaining: string } => {
-    // Try to find a complete JSON object in the buffer
+  const tryParseJSON = useCallback((buffer: string): { parsed: CoachingTip | null; remaining: string } => {
     const startIdx = buffer.indexOf('{')
     if (startIdx === -1) return { parsed: null, remaining: buffer }
 
@@ -39,31 +37,21 @@ export function useAnalystSession(): UseAnalystSessionReturn {
         const jsonStr = buffer.slice(startIdx, i + 1)
         try {
           const obj = JSON.parse(jsonStr)
-          // Validate it has expected fields
-          if (
-            typeof obj.accuracy === 'number' &&
-            typeof obj.depth === 'number' &&
-            typeof obj.clarity === 'number'
-          ) {
-            const feedback: AnswerFeedback = {
+          if (Array.isArray(obj.hints) && obj.hints.length > 0) {
+            const tip: CoachingTip = {
               question: obj.question ?? '',
-              accuracy: obj.accuracy,
-              depth: obj.depth,
-              clarity: obj.clarity,
-              strengths: Array.isArray(obj.strengths) ? obj.strengths : [],
-              gaps: Array.isArray(obj.gaps) ? obj.gaps : [],
+              hints: obj.hints,
+              key_terms: Array.isArray(obj.key_terms) ? obj.key_terms : [],
             }
-            return { parsed: feedback, remaining: buffer.slice(i + 1) }
+            return { parsed: tip, remaining: buffer.slice(i + 1) }
           }
         } catch {
-          // Not valid JSON yet, continue
+          // Not valid JSON yet
         }
-        // Invalid JSON object, skip past it
         return { parsed: null, remaining: buffer.slice(i + 1) }
       }
     }
 
-    // Incomplete JSON, keep accumulating
     return { parsed: null, remaining: buffer }
   }, [])
 
@@ -71,23 +59,22 @@ export function useAnalystSession(): UseAnalystSessionReturn {
     const session = new GeminiLiveSession({
       onTextOutput: (text) => {
         textBufferRef.current += text
-        // Try to parse accumulated text as JSON
         const { parsed, remaining } = tryParseJSON(textBufferRef.current)
         textBufferRef.current = remaining
         if (parsed) {
           setAnalysis(prev => ({
             current: parsed,
             history: [...prev.history, parsed],
-            isAnalyzing: false,
+            isThinking: false,
           }))
         }
       },
       onReady: () => {
-        console.log('[Gemini:Analyst] Setup complete')
+        console.log('[Gemini:Coach] Setup complete')
         setIsReady(true)
       },
       onError: (err) => {
-        console.error('[Gemini:Analyst] Error:', err)
+        console.error('[Gemini:Coach] Error:', err)
         setError(err)
       },
       onClose: () => {
@@ -108,7 +95,7 @@ export function useAnalystSession(): UseAnalystSessionReturn {
     if (newLines.length === 0) return
 
     lastFedIndexRef.current = lines.length
-    setAnalysis(prev => ({ ...prev, isAnalyzing: true }))
+    setAnalysis(prev => ({ ...prev, isThinking: true }))
     sessionRef.current.sendText(newLines.join('\n'))
   }, [])
 
