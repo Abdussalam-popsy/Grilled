@@ -27,6 +27,10 @@ export function useGeminiSession(): UseGeminiSessionReturn {
   const [transcript, setTranscript] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Track partial transcription to accumulate before adding to transcript
+  const geminiPartialRef = useRef('')
+  const userPartialRef = useRef('')
+
   const playAudioChunk = useCallback((base64Audio: string) => {
     const player = audioPlayerRef.current
     if (!player.audioContext) {
@@ -53,7 +57,6 @@ export function useGeminiSession(): UseGeminiSessionReturn {
 
     const source = ctx.createBufferSource()
     source.buffer = audioBuffer
-
     source.connect(ctx.destination)
 
     const now = ctx.currentTime
@@ -70,20 +73,53 @@ export function useGeminiSession(): UseGeminiSessionReturn {
         playAudioChunk(audioData)
       },
       onTextOutput: (text) => {
+        // Text output from model (non-audio response)
         setTranscript(prev => [...prev, `Gemini: ${text}`])
+      },
+      onTranscript: (text, isUser) => {
+        // Accumulate transcription fragments
+        if (isUser) {
+          userPartialRef.current += text
+          // Flush on sentence-ending punctuation or after enough text
+          if (/[.?!]\s*$/.test(userPartialRef.current) || userPartialRef.current.length > 200) {
+            const flushed = userPartialRef.current.trim()
+            if (flushed) {
+              setTranscript(prev => [...prev, `You: ${flushed}`])
+            }
+            userPartialRef.current = ''
+          }
+        } else {
+          geminiPartialRef.current += text
+          if (/[.?!]\s*$/.test(geminiPartialRef.current) || geminiPartialRef.current.length > 200) {
+            const flushed = geminiPartialRef.current.trim()
+            if (flushed) {
+              setTranscript(prev => [...prev, `Gemini: ${flushed}`])
+            }
+            geminiPartialRef.current = ''
+          }
+        }
       },
       onReady: () => {
         setIsReady(true)
       },
       onError: (err) => {
+        console.error('[Gemini] Error:', err)
         setError(err)
       },
       onClose: () => {
+        // Flush any remaining partial transcriptions
+        if (userPartialRef.current.trim()) {
+          setTranscript(prev => [...prev, `You: ${userPartialRef.current.trim()}`])
+          userPartialRef.current = ''
+        }
+        if (geminiPartialRef.current.trim()) {
+          setTranscript(prev => [...prev, `Gemini: ${geminiPartialRef.current.trim()}`])
+          geminiPartialRef.current = ''
+        }
         setIsConnected(false)
         setIsReady(false)
       },
       onInterrupted: () => {
-        // Audio was interrupted by user speaking
         const player = audioPlayerRef.current
         if (player.audioContext) {
           player.nextStartTime = player.audioContext.currentTime

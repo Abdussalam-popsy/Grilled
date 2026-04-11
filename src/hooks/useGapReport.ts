@@ -20,10 +20,23 @@ export function useGapReport(): UseGapReportReturn {
 
     try {
       const transcriptText = transcript.join('\n')
+
+      if (!transcriptText.trim()) {
+        throw new Error('No conversation transcript to analyze. Try having a longer session.')
+      }
+
       const responseText = await generateGapReport(transcriptText, mode, goal)
-      const parsed = JSON.parse(responseText) as GapReport
+
+      // Try to parse, handling potential markdown wrapping
+      let cleaned = responseText.trim()
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+      }
+
+      const parsed = JSON.parse(cleaned) as GapReport
       setReport(parsed)
     } catch (err) {
+      console.error('[GapReport] Generation error:', err)
       setError(err instanceof Error ? err.message : 'Failed to generate gap report')
     } finally {
       setIsGenerating(false)

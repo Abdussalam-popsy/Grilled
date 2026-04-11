@@ -12,16 +12,15 @@ Grilled is a real-time AI interview and exam prep agent powered by Gemini 3.1 Fl
 - **Adaptive behaviour**: Interrupts when you're wrong, encourages when you hesitate, escalates when you're strong
 - **Agentic resource search**: Upload PDFs or let Gemini find materials via web grounding
 - **Gap report**: Three-tier breakdown (strong / needs review / priority) with readiness score
-- **Visual cram cards**: AI-generated study aid diagrams for your weakest topics (fal)
-- **Voice debrief**: Gap report read back as a coaching session (Gradium TTS)
+- **Visual cram cards**: AI-generated study aid diagrams for your weakest topics (Gemini image generation)
 
 ## Tech Stack
 
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS
-- **Core engine**: [Gemini 3.1 Flash Live API](https://ai.google.dev/gemini-api/docs/live) — real-time bidirectional audio + video frames via WebSocket
+- **Core engine**: [Gemini Live API](https://ai.google.dev/gemini-api/docs/live) — real-time bidirectional audio + video frames via WebSocket
 - **Web grounding**: Gemini built-in agentic search
-- **Visual study aids**: [fal](https://fal.ai) — fast image generation from gap report topics
-- **Voice debrief**: [Gradium](https://gradium.ai) — TTS for post-session coaching
+- **Visual study aids**: Gemini image generation — study diagrams from gap report topics
+- **Gap report**: Gemini structured output — three-tier analysis with readiness score
 - **PDF parsing**: PDF.js (client-side)
 - **Media capture**: Browser MediaDevices API
 
@@ -41,12 +40,10 @@ Create a `.env` file:
 cp .env.example .env
 ```
 
-Add your API keys:
+Add your API key:
 
 ```
 VITE_GEMINI_API_KEY=your_gemini_api_key
-VITE_FAL_API_KEY=your_fal_api_key
-VITE_GRADIUM_API_KEY=your_gradium_api_key
 ```
 
 Run the dev server:
@@ -68,7 +65,7 @@ src/
 │   ├── ResourceUpload.tsx      # PDF upload + auto-search option
 │   ├── ResourceConfirm.tsx     # Gemini confirms context before session
 │   ├── Session.tsx             # Live session (camera, waveform, timer, end button)
-│   └── GapReport.tsx           # Three-tier report + fal images + Gradium audio
+│   └── GapReport.tsx           # Three-tier report + Gemini-generated visuals
 ├── hooks/
 │   ├── useMediaDevices.ts      # Camera + mic access, video frame capture
 │   ├── useGeminiSession.ts     # Live API session lifecycle + audio playback
@@ -76,8 +73,7 @@ src/
 │   └── useGapReport.ts        # Post-session gap report generation
 ├── lib/
 │   ├── gemini.ts              # Gemini Live API WebSocket + standard completion
-│   ├── fal.ts                 # fal image generation
-│   ├── gradium.ts             # Gradium TTS
+│   ├── gemini.ts              # Gemini Live API + completions + image gen
 │   ├── pdf.ts                 # PDF.js text extraction
 │   └── prompts.ts             # System instructions for interview/exam personas
 └── types/
@@ -91,20 +87,15 @@ src/
 3. **Add materials** — Upload PDFs or let Gemini search for you
 4. **Live session** — Gemini asks questions via voice while watching your camera feed
 5. **Gap report** — Structured breakdown of strengths and weaknesses
-6. **Visual cram cards** — fal generates study aid diagrams for weak topics
-7. **Voice debrief** — Gradium reads your report like a supportive coach
+6. **Visual cram cards** — Gemini generates study aid diagrams for weak topics
 
 ## Hackathon
 
 Built at **{Tech: Europe} London AI Hackathon** (April 2026) for the **Google DeepMind — Real-Time Conversational Agents with Gemini 3** track.
 
 ### Partner Technologies
-- **Google DeepMind** — Gemini 3.1 Flash Live API (primary engine)
-- **fal** — Visual cram card generation (Best Use of fal side challenge)
-- **Gradium** — TTS voice debrief
+- **Google DeepMind** — Gemini Live API (real-time multimodal), Gemini Flash (gap report), Gemini image generation (visual cram cards)
 
 ## Credits
 
 - [Gemini API](https://ai.google.dev) by Google DeepMind
-- [fal](https://fal.ai) for fast image generation
-- [Gradium](https://gradium.ai) for text-to-speech
