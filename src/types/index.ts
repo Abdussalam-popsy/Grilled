@@ -37,6 +37,16 @@ export interface GapReport {
   top_cram_topics: CramTopic[]
 }
 
+export interface AnswerFeedback {
+  question: string
+  accuracy: number
+  depth: number
+  clarity: number
+  strengths: string[]
+  gaps: string[]
+  coaching: string
+}
+
 export interface CoachingTip {
   question: string
   hints: string[]
@@ -49,7 +59,7 @@ export interface CoachingState {
   isThinking: boolean
 }
 
-export type AppScreen = 'landing' | 'goal' | 'resources' | 'confirm' | 'session' | 'report'
+export type AppScreen = 'landing' | 'profile' | 'goal' | 'resources' | 'confirm' | 'session' | 'report'
 
 export interface SessionState {
   mode: Mode
@@ -58,4 +68,18 @@ export interface SessionState {
   contextSummary: string
   transcript: string[]
   gapReport: GapReport | null
+  userName: string
+  resumeContext: string
+}
+
+export interface SessionRecord {
+  date: string
+  goal: string
+  role: string
+  readinessScore: number
+  avgAccuracy: number
+  avgDepth: number
+  avgClarity: number
+  duration: number
+  questionCount: number
 }

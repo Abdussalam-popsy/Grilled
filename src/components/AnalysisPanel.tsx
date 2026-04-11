@@ -60,6 +60,7 @@ function CoachingCard({ tip, isCurrent }: { tip: CoachingTip; isCurrent: boolean
           ))}
         </div>
       )}
+
     </motion.div>
   )
 }

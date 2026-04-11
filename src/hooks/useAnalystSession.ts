@@ -90,7 +90,10 @@ export function useAnalystSession(): UseAnalystSessionReturn {
   }, [tryParseJSON])
 
   const feedTranscript = useCallback((lines: string[]) => {
-    if (!sessionRef.current?.connected) return
+    if (!sessionRef.current?.connected) {
+      console.warn('[Analyst] feedTranscript called but session not connected')
+      return
+    }
     const newLines = lines.slice(lastFedIndexRef.current)
     if (newLines.length === 0) return
 

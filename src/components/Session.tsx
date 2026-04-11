@@ -5,7 +5,7 @@ import { useGeminiSession } from '../hooks/useGeminiSession'
 import { useAudioStreamer } from '../hooks/useAudioStreamer'
 import { useAnalystSession } from '../hooks/useAnalystSession'
 import { AnalysisPanel } from './AnalysisPanel'
-import type { Mode } from '../types'
+import type { Mode, AnswerFeedback } from '../types'
 
 const GEMINI_FAREWELL = /\b(goodbye|good\s*bye|bye|good\s+luck|best\s+of\s+luck|take\s+care|all\s+the\s+best|it\s+was\s+(great|nice|a\s+pleasure))\b/i
 
@@ -13,10 +13,11 @@ interface Props {
   mode: Mode
   goal: string
   resourceContext: string
-  onEnd: (transcript: string[]) => void
+  userName?: string
+  onEnd: (transcript: string[], feedbackHistory: AnswerFeedback[], duration: number) => void
 }
 
-export function Session({ mode, goal, resourceContext, onEnd }: Props) {
+export function Session({ mode, goal, resourceContext, userName, onEnd }: Props) {
   const media = useMediaDevices()
   const gemini = useGeminiSession()
   const analyst = useAnalystSession()
@@ -35,7 +36,7 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
   useEffect(() => {
     const init = async () => {
       await media.start()
-      gemini.connect(mode, goal, resourceContext)
+      gemini.connect(mode, goal, resourceContext, userName)
       analyst.connect(goal)
     }
     init()
@@ -149,8 +150,9 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     media.stop()
     gemini.disconnect()
+    const feedbackHistory = [...analyst.analysis.history]
     analyst.disconnect()
-    onEnd(gemini.transcript)
+    onEnd(gemini.transcript, feedbackHistory, elapsed)
   }
 
   const handleEndRef = useRef(handleEnd)
