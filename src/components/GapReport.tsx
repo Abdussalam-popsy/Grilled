@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { GapReport as GapReportType, AnswerFeedback, SessionRecord } from '../types/index.ts'
-import { generateStudyImage } from '../lib/gemini'
 import { getHistory } from '../lib/sessionHistory'
 
 interface Props {
@@ -217,8 +216,6 @@ function QuestionBreakdown({ feedback }: { feedback: AnswerFeedback[] }) {
 }
 
 export function GapReport({ report, feedbackHistory, sessionDuration, userName, onRestart, onReportReady }: Props) {
-  const [cramImages, setCramImages] = useState<Record<string, string>>({})
-  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
   const [sessionHistory, setSessionHistory] = useState<SessionRecord[]>([])
   const [hasSaved, setHasSaved] = useState(false)
 
@@ -229,18 +226,6 @@ export function GapReport({ report, feedbackHistory, sessionDuration, userName, 
       setSessionHistory(getHistory())
     }
   }, [hasSaved, report.readiness_score, onReportReady])
-
-  useEffect(() => {
-    report.top_cram_topics.forEach(async (topic) => {
-      try {
-        const url = await generateStudyImage(topic.visual_description)
-        setCramImages(prev => ({ ...prev, [topic.topic]: url }))
-      } catch (err) {
-        console.error(`Failed to generate image for ${topic.topic}:`, err)
-        setImageErrors(prev => ({ ...prev, [topic.topic]: true }))
-      }
-    })
-  }, [report.top_cram_topics])
 
   const score = report.readiness_score
   const normalizedScore = score > 10 ? score / 100 : score / 10
@@ -458,55 +443,6 @@ export function GapReport({ report, feedbackHistory, sessionDuration, userName, 
         <div className="mb-8">
           <ProgressChart history={sessionHistory} />
         </div>
-
-        {report.top_cram_topics.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="mb-10"
-          >
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-2 h-2 rounded-full bg-ember-500" />
-              <h2 className="text-lg font-semibold tracking-tight">Visual Cram Cards</h2>
-              <span className="text-xs text-surface-400 ml-auto">powered by Gemini</span>
-            </div>
-            <div className="space-y-4">
-              {report.top_cram_topics.map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 + i * 0.1 }}
-                  className="bg-surface-50 border border-surface-200/20 rounded-xl overflow-hidden"
-                >
-                  <div className="px-5 py-3.5 border-b border-surface-200/15">
-                    <div className="font-medium text-[15px]">{t.topic}</div>
-                  </div>
-                  <div className="aspect-video bg-surface-100 flex items-center justify-center relative">
-                    {cramImages[t.topic] ? (
-                      <img
-                        src={cramImages[t.topic]}
-                        alt={`Study aid: ${t.topic}`}
-                        className="w-full h-full object-contain p-2"
-                      />
-                    ) : imageErrors[t.topic] ? (
-                      <div className="text-surface-400 text-sm px-6 text-center">
-                        <p className="mb-1">Could not generate visual</p>
-                        <p className="text-xs text-surface-300">{t.visual_description}</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-5 h-5 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
-                        <span className="text-surface-400 text-xs">Generating visual...</span>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        )}
 
         {/* Restart */}
         <motion.div
