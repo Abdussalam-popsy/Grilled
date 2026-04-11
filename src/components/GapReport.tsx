@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { motion } from 'motion/react'
 import type { GapReport as GapReportType } from '../types'
 import { generateStudyAidImage } from '../lib/fal'
 import { generateVoiceDebrief } from '../lib/gradium'
@@ -12,7 +13,7 @@ export function GapReport({ report, onRestart }: Props) {
   const [cramImages, setCramImages] = useState<Record<string, string>>({})
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [audioRef] = useState(() => new Audio())
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Generate fal images for cram topics
   useEffect(() => {
@@ -40,114 +41,242 @@ export function GapReport({ report, onRestart }: Props) {
 
   const toggleAudio = () => {
     if (!audioUrl) return
+    if (!audioRef.current) {
+      audioRef.current = new Audio(audioUrl)
+      audioRef.current.onended = () => setIsPlaying(false)
+    }
+
     if (isPlaying) {
-      audioRef.pause()
+      audioRef.current.pause()
       setIsPlaying(false)
     } else {
-      audioRef.src = audioUrl
-      audioRef.play()
+      audioRef.current.play()
       setIsPlaying(true)
-      audioRef.onended = () => setIsPlaying(false)
     }
   }
 
-  const scoreColor = report.readiness_score >= 7 ? 'text-green-400' :
-    report.readiness_score >= 4 ? 'text-yellow-400' : 'text-red-400'
+  const scoreColor = report.readiness_score >= 7
+    ? 'text-green-400' : report.readiness_score >= 4
+    ? 'text-amber-400' : 'text-red-400'
+
+  const scoreRingColor = report.readiness_score >= 7
+    ? 'stroke-green-400' : report.readiness_score >= 4
+    ? 'stroke-amber-400' : 'stroke-red-400'
+
+  const circumference = 2 * Math.PI * 54
+  const progress = (report.readiness_score / 10) * circumference
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <div className="max-w-2xl mx-auto px-6 py-10">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold mb-3">Gap Report</h1>
-          <div className="flex items-center justify-center gap-3">
-            <span className={`text-6xl font-bold ${scoreColor}`}>
-              {report.readiness_score}
-            </span>
-            <span className="text-2xl text-neutral-500">/10</span>
-          </div>
-          <p className="text-neutral-400 mt-2 max-w-md mx-auto">{report.readiness_justification}</p>
-        </div>
+    <div className="grain min-h-screen bg-surface-0 text-white relative overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-ember-600/4 blur-[120px] pointer-events-none" />
 
-        {/* Voice debrief */}
-        <div className="mb-8 flex justify-center">
+      <div className="max-w-2xl mx-auto px-6 py-12 relative z-10">
+        {/* Header with score */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center mb-12"
+        >
+          <p className="text-ember-500 text-sm font-medium uppercase tracking-wider mb-6">Session Complete</p>
+
+          {/* Circular score */}
+          <div className="relative inline-flex items-center justify-center mb-6">
+            <svg width="132" height="132" viewBox="0 0 132 132" className="-rotate-90">
+              <circle cx="66" cy="66" r="54" fill="none" stroke="currentColor" strokeWidth="4" className="text-surface-200/20" />
+              <motion.circle
+                cx="66" cy="66" r="54"
+                fill="none"
+                strokeWidth="4"
+                strokeLinecap="round"
+                className={scoreRingColor}
+                strokeDasharray={circumference}
+                initial={{ strokeDashoffset: circumference }}
+                animate={{ strokeDashoffset: circumference - progress }}
+                transition={{ duration: 1.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              />
+            </svg>
+            <div className="absolute flex flex-col items-center">
+              <motion.span
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                className={`text-4xl font-bold tabular-nums ${scoreColor}`}
+              >
+                {report.readiness_score}
+              </motion.span>
+              <span className="text-xs text-surface-400 mt-0.5">/ 10</span>
+            </div>
+          </div>
+
+          <h1 className="font-display text-4xl md:text-5xl italic tracking-tight mb-3">
+            Gap Report
+          </h1>
+          <p className="text-surface-500 max-w-md mx-auto leading-relaxed text-[15px]">
+            {report.readiness_justification}
+          </p>
+        </motion.div>
+
+        {/* Voice debrief player */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mb-10 flex justify-center"
+        >
           <button
             onClick={toggleAudio}
             disabled={!audioUrl}
-            className="flex items-center gap-2 px-5 py-3 bg-neutral-900 border border-neutral-800 rounded-xl hover:border-neutral-600 transition-colors disabled:opacity-30 cursor-pointer"
+            className={`flex items-center gap-3 px-6 py-3.5 rounded-xl border transition-all cursor-pointer text-sm font-medium ${
+              isPlaying
+                ? 'bg-ember-600/10 border-ember-600/30 text-ember-400'
+                : 'bg-surface-50 border-surface-200/30 text-surface-500 hover:border-ember-600/30 hover:text-ember-400'
+            } disabled:opacity-30 disabled:cursor-not-allowed`}
           >
-            <span>{isPlaying ? '⏸' : '▶️'}</span>
-            <span>{audioUrl ? 'Voice Debrief' : 'Generating audio...'}</span>
+            {!audioUrl ? (
+              <>
+                <div className="w-4 h-4 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
+                Generating voice debrief...
+              </>
+            ) : (
+              <>
+                <div className="w-8 h-8 rounded-full bg-ember-600/20 flex items-center justify-center">
+                  {isPlaying ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="3" height="8" rx="0.5"/><rect x="7" y="2" width="3" height="8" rx="0.5"/></svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 1.5v9l7.5-4.5L3 1.5z"/></svg>
+                  )}
+                </div>
+                Voice Debrief
+                <span className="text-xs text-surface-400 ml-1">by Gradium</span>
+              </>
+            )}
           </button>
-        </div>
+        </motion.div>
 
         {/* Strong topics */}
         {report.strong.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-green-500" /> Strong
-            </h2>
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-2 h-2 rounded-full bg-green-400" />
+              <h2 className="text-lg font-semibold tracking-tight">Strong</h2>
+              <span className="text-xs text-surface-400 ml-auto">{report.strong.length} topics</span>
+            </div>
             <div className="space-y-2">
               {report.strong.map((t, i) => (
-                <div key={i} className="bg-green-950/30 border border-green-900/50 rounded-xl px-4 py-3">
-                  <div className="font-medium">{t.topic}</div>
-                  <div className="text-sm text-green-400/70 mt-1">{t.justification}</div>
-                </div>
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 + i * 0.05 }}
+                  className="bg-green-950/20 border border-green-900/20 rounded-xl px-5 py-4"
+                >
+                  <div className="font-medium text-[15px]">{t.topic}</div>
+                  <div className="text-sm text-green-400/60 mt-1.5 leading-relaxed">{t.justification}</div>
+                </motion.div>
               ))}
             </div>
-          </section>
+          </motion.section>
         )}
 
         {/* Shaky topics */}
         {report.shaky.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-yellow-500" /> Needs Review
-            </h2>
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-2 h-2 rounded-full bg-amber-400" />
+              <h2 className="text-lg font-semibold tracking-tight">Needs Review</h2>
+              <span className="text-xs text-surface-400 ml-auto">{report.shaky.length} topics</span>
+            </div>
             <div className="space-y-2">
               {report.shaky.map((t, i) => (
-                <div key={i} className="bg-yellow-950/30 border border-yellow-900/50 rounded-xl px-4 py-3">
-                  <div className="font-medium">{t.topic}</div>
-                  <div className="text-sm text-yellow-400/70 mt-1">{t.what_was_missing}</div>
-                </div>
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.6 + i * 0.05 }}
+                  className="bg-amber-950/20 border border-amber-900/20 rounded-xl px-5 py-4"
+                >
+                  <div className="font-medium text-[15px]">{t.topic}</div>
+                  <div className="text-sm text-amber-400/60 mt-1.5 leading-relaxed">{t.what_was_missing}</div>
+                </motion.div>
               ))}
             </div>
-          </section>
+          </motion.section>
         )}
 
         {/* Weak topics */}
         {report.weak.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-500" /> Priority Review
-            </h2>
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-2 h-2 rounded-full bg-red-400" />
+              <h2 className="text-lg font-semibold tracking-tight">Priority Review</h2>
+              <span className="text-xs text-surface-400 ml-auto">{report.weak.length} topics</span>
+            </div>
             <div className="space-y-2">
               {report.weak.map((t, i) => (
-                <div key={i} className="bg-red-950/30 border border-red-900/50 rounded-xl px-4 py-3">
-                  <div className="font-medium">{t.topic}</div>
-                  <div className="text-sm text-red-400/70 mt-1">
-                    <strong>Correct answer:</strong> {t.correct_answer}
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.7 + i * 0.05 }}
+                  className="bg-red-950/20 border border-red-900/20 rounded-xl px-5 py-4"
+                >
+                  <div className="font-medium text-[15px]">{t.topic}</div>
+                  <div className="text-sm text-red-400/60 mt-2 leading-relaxed">
+                    <span className="text-red-400/40 uppercase text-xs tracking-wider font-semibold">Answer: </span>
+                    {t.correct_answer}
                   </div>
-                  <div className="text-sm text-red-400/50 mt-1">
-                    <strong>Review angle:</strong> {t.review_angle}
+                  <div className="text-sm text-red-400/40 mt-1.5 leading-relaxed">
+                    <span className="text-red-400/30 uppercase text-xs tracking-wider font-semibold">Review: </span>
+                    {t.review_angle}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
-          </section>
+          </motion.section>
         )}
 
         {/* Visual cram cards */}
         {report.top_cram_topics.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-3">Visual Cram Cards</h2>
-            <div className="grid gap-4">
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="mb-10"
+          >
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-2 h-2 rounded-full bg-ember-500" />
+              <h2 className="text-lg font-semibold tracking-tight">Visual Cram Cards</h2>
+              <span className="text-xs text-surface-400 ml-auto">by fal</span>
+            </div>
+            <div className="space-y-4">
               {report.top_cram_topics.map((t, i) => (
-                <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-                  <div className="px-4 py-3 border-b border-neutral-800">
-                    <div className="font-medium">{t.topic}</div>
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 + i * 0.1 }}
+                  className="bg-surface-50 border border-surface-200/20 rounded-xl overflow-hidden"
+                >
+                  <div className="px-5 py-3.5 border-b border-surface-200/15">
+                    <div className="font-medium text-[15px]">{t.topic}</div>
                   </div>
-                  <div className="aspect-video bg-neutral-800 flex items-center justify-center">
+                  <div className="aspect-video bg-surface-100 flex items-center justify-center relative">
                     {cramImages[t.topic] ? (
                       <img
                         src={cramImages[t.topic]}
@@ -155,24 +284,32 @@ export function GapReport({ report, onRestart }: Props) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="text-neutral-600 text-sm animate-pulse">Generating visual...</div>
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-5 h-5 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
+                        <span className="text-surface-400 text-xs">Generating visual...</span>
+                      </div>
                     )}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
-          </section>
+          </motion.section>
         )}
 
         {/* Restart */}
-        <div className="text-center pt-4 pb-10">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="text-center pt-4 pb-12"
+        >
           <button
             onClick={onRestart}
-            className="px-8 py-3 bg-white text-black font-semibold rounded-xl hover:bg-neutral-200 transition-all cursor-pointer"
+            className="px-8 py-3.5 bg-surface-100 border border-surface-200/40 text-white font-medium rounded-xl hover:border-ember-600/30 hover:bg-surface-100/80 transition-all cursor-pointer text-[15px]"
           >
             Start New Session
           </button>
-        </div>
+        </motion.div>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { useMediaDevices } from '../hooks/useMediaDevices'
 import { useGeminiSession } from '../hooks/useGeminiSession'
 import { useAudioStreamer } from '../hooks/useAudioStreamer'
@@ -18,6 +19,10 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
   const frameIntervalRef = useRef<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [isStarting, setIsStarting] = useState(true)
+  const [showEndConfirm, setShowEndConfirm] = useState(false)
+  const waveformRef = useRef<HTMLCanvasElement | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const animFrameRef = useRef<number>(0)
 
   // Start everything on mount
   useEffect(() => {
@@ -27,15 +32,72 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     }
     init()
 
-    // Timer
     const timer = setInterval(() => setElapsed(prev => prev + 1), 1000)
-
     return () => {
       clearInterval(timer)
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
       audioStreamer.stop()
+      cancelAnimationFrame(animFrameRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Waveform visualizer
+  const startWaveform = useCallback((stream: MediaStream) => {
+    const audioCtx = new AudioContext()
+    const source = audioCtx.createMediaStreamSource(stream)
+    const analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 128
+    source.connect(analyser)
+    analyserRef.current = analyser
+
+    const draw = () => {
+      const canvas = waveformRef.current
+      if (!canvas || !analyserRef.current) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      const bufferLength = analyserRef.current.frequencyBinCount
+      const dataArray = new Uint8Array(bufferLength)
+      analyserRef.current.getByteFrequencyData(dataArray)
+
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = canvas.clientWidth * dpr
+      canvas.height = canvas.clientHeight * dpr
+      ctx.scale(dpr, dpr)
+
+      const w = canvas.clientWidth
+      const h = canvas.clientHeight
+
+      ctx.clearRect(0, 0, w, h)
+
+      const barCount = 40
+      const gap = 3
+      const barWidth = (w - gap * (barCount - 1)) / barCount
+      const step = Math.floor(bufferLength / barCount)
+
+      for (let i = 0; i < barCount; i++) {
+        const value = dataArray[i * step] / 255
+        const barHeight = Math.max(3, value * h * 0.85)
+
+        const x = i * (barWidth + gap)
+        const y = (h - barHeight) / 2
+
+        // Ember gradient based on intensity
+        const intensity = Math.min(1, value * 1.5)
+        const r = Math.round(234 + (245 - 234) * intensity)
+        const g = Math.round(88 + (158 - 88) * intensity)
+        const b = Math.round(12 + (11 - 12) * intensity)
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.4 + intensity * 0.6})`
+
+        ctx.beginPath()
+        ctx.roundRect(x, y, barWidth, barHeight, 2)
+        ctx.fill()
+      }
+
+      animFrameRef.current = requestAnimationFrame(draw)
+    }
+    draw()
   }, [])
 
   // Start streaming when Gemini is ready
@@ -43,32 +105,28 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     if (!gemini.isReady || !media.isActive) return
     setIsStarting(false)
 
-    // Send video frames at ~1fps
     frameIntervalRef.current = window.setInterval(() => {
       const frame = media.captureFrame()
-      if (frame) {
-        gemini.sendVideoFrame(frame)
-      }
+      if (frame) gemini.sendVideoFrame(frame)
     }, 1000)
 
-    // Start audio streaming
     const audioStream = media.getAudioStream()
     if (audioStream) {
       audioStreamer.start(audioStream, (base64Audio) => {
         gemini.sendAudio(base64Audio)
       })
+      startWaveform(audioStream)
     }
 
     return () => {
-      if (frameIntervalRef.current) {
-        clearInterval(frameIntervalRef.current)
-      }
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gemini.isReady, media.isActive])
 
   const handleEnd = () => {
     audioStreamer.stop()
+    cancelAnimationFrame(animFrameRef.current)
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     media.stop()
     gemini.disconnect()
@@ -78,32 +136,53 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)
     const sec = s % 60
-    return `${m}:${sec.toString().padStart(2, '0')}`
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+    <div className="grain min-h-screen bg-surface-0 text-white flex flex-col relative overflow-hidden">
+      {/* Subtle ambient glow behind camera */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-ember-600/4 blur-[100px] pointer-events-none" />
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-surface-200/20"
+      >
         <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${gemini.isReady ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
-          <span className="text-sm text-neutral-400">
-            {isStarting ? 'Connecting...' : 'Live'}
+          <div className={`w-2.5 h-2.5 rounded-full ${gemini.isReady ? 'bg-ember-500' : 'bg-surface-400'}`}>
+            {gemini.isReady && (
+              <div className="w-2.5 h-2.5 rounded-full bg-ember-500 animate-ping" />
+            )}
+          </div>
+          <span className="text-sm text-surface-500 font-medium">
+            {isStarting ? 'Connecting...' : 'Live Session'}
           </span>
         </div>
-        <span className="font-mono text-lg tabular-nums">{formatTime(elapsed)}</span>
+
+        <span className="font-mono text-xl tabular-nums tracking-wider text-surface-600">
+          {formatTime(elapsed)}
+        </span>
+
         <button
-          onClick={handleEnd}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-semibold text-sm transition-colors cursor-pointer"
+          onClick={() => setShowEndConfirm(true)}
+          className="px-4 py-2 bg-surface-100 border border-surface-200/40 text-surface-500 hover:text-red-400 hover:border-red-500/30 rounded-lg font-medium text-sm transition-all cursor-pointer"
         >
           End Session
         </button>
-      </div>
+      </motion.div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 relative z-10">
         {/* Camera preview */}
-        <div className="relative w-full max-w-md aspect-[4/3] bg-neutral-900 rounded-2xl overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-md aspect-[4/3] bg-surface-50 rounded-2xl overflow-hidden border border-surface-200/20"
+        >
           <video
             ref={media.videoRef}
             autoPlay
@@ -113,50 +192,105 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
           />
           {!media.isActive && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-neutral-500">Camera loading...</span>
+              <div className="w-6 h-6 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
             </div>
           )}
-        </div>
 
-        {/* Audio waveform placeholder */}
-        <div className="flex items-center gap-1 h-12">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="w-1 bg-white/30 rounded-full"
-              style={{
-                height: `${Math.random() * 100}%`,
-                animation: gemini.isReady ? `pulse 1s ease-in-out ${i * 0.05}s infinite alternate` : 'none',
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Transcript */}
-        {gemini.transcript.length > 0 && (
-          <div className="w-full max-w-md max-h-40 overflow-y-auto bg-neutral-900/50 rounded-xl p-4 space-y-2">
-            {gemini.transcript.slice(-5).map((line, i) => (
-              <p key={i} className={`text-sm ${line.startsWith('Gemini:') ? 'text-blue-400' : 'text-neutral-300'}`}>
-                {line}
-              </p>
-            ))}
+          {/* Mode badge */}
+          <div className="absolute top-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md text-xs text-surface-600 font-medium">
+            {mode === 'interview' ? '💼 Interview' : '📚 Exam'}
           </div>
-        )}
+        </motion.div>
 
-        {/* Error display */}
+        {/* Waveform */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="w-full max-w-md h-16"
+        >
+          <canvas
+            ref={waveformRef}
+            className="w-full h-full"
+          />
+        </motion.div>
+
+        {/* Live transcript (last few lines) */}
+        <AnimatePresence mode="popLayout">
+          {gemini.transcript.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="w-full max-w-md max-h-32 overflow-y-auto bg-surface-50/50 backdrop-blur-sm border border-surface-200/20 rounded-xl p-4 space-y-2"
+            >
+              {gemini.transcript.slice(-4).map((line, i) => (
+                <motion.p
+                  key={`${gemini.transcript.length - 4 + i}`}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`text-sm leading-relaxed ${
+                    line.startsWith('Gemini:')
+                      ? 'text-ember-400'
+                      : 'text-surface-500'
+                  }`}
+                >
+                  {line}
+                </motion.p>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Errors */}
         {(gemini.error || media.error) && (
-          <div className="bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 text-red-400 text-sm">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-red-950/30 border border-red-900/40 rounded-lg px-4 py-3 text-red-400 text-sm max-w-md w-full"
+          >
             {gemini.error || media.error}
-          </div>
+          </motion.div>
         )}
       </div>
 
-      <style>{`
-        @keyframes pulse {
-          from { transform: scaleY(0.3); }
-          to { transform: scaleY(1); }
-        }
-      `}</style>
+      {/* End session confirmation overlay */}
+      <AnimatePresence>
+        {showEndConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface-100 border border-surface-200/40 rounded-2xl p-8 max-w-sm w-full mx-6 text-center"
+            >
+              <h3 className="text-xl font-semibold mb-2">End this session?</h3>
+              <p className="text-surface-500 text-sm mb-6">
+                Your gap report will be generated from the conversation so far.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowEndConfirm(false)}
+                  className="flex-1 py-3 bg-surface-200/50 rounded-xl font-medium text-sm hover:bg-surface-200 transition-colors cursor-pointer"
+                >
+                  Keep going
+                </button>
+                <button
+                  onClick={handleEnd}
+                  className="flex-1 py-3 bg-red-600 rounded-xl font-medium text-sm hover:bg-red-700 transition-colors cursor-pointer"
+                >
+                  End & get report
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
