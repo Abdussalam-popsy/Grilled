@@ -7,6 +7,8 @@ import { useAnalystSession } from '../hooks/useAnalystSession'
 import { AnalysisPanel } from './AnalysisPanel'
 import type { Mode } from '../types'
 
+const END_PHRASES = /\b(end.{0,5}(session|here|now)|let'?s\s+(stop|end|wrap|finish)|that'?s\s+(enough|all)|i'?m\s+done|we\s+can\s+(stop|end)|wrap.{0,3}up|i'?ve\s+had\s+enough|call\s+it)\b/i
+
 interface Props {
   mode: Mode
   goal: string
@@ -27,6 +29,13 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animFrameRef = useRef<number>(0)
   const prevTranscriptLenRef = useRef(0)
+  const endBtnRef = useRef<HTMLButtonElement>(null)
+  const confirmEndBtnRef = useRef<HTMLButtonElement>(null)
+  const [ghostActive, setGhostActive] = useState(false)
+  const [ghostTarget, setGhostTarget] = useState({ x: 0, y: 0 })
+  const [ghostClicking, setGhostClicking] = useState(false)
+  const autoEndingRef = useRef(false)
+  const handleEndRef = useRef<() => void>(() => {})
 
   // Start everything on mount
   useEffect(() => {
@@ -147,6 +156,70 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     onEnd(gemini.transcript)
   }
 
+  handleEndRef.current = handleEnd
+
+  const startAutoEnd = useCallback(() => {
+    const cx = window.innerWidth / 2
+    const cy = window.innerHeight * 0.65
+
+    setGhostTarget({ x: cx, y: cy })
+    setGhostActive(true)
+
+    setTimeout(() => {
+      if (!endBtnRef.current) { handleEndRef.current(); return }
+      const r = endBtnRef.current.getBoundingClientRect()
+      setGhostTarget({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+    }, 600)
+
+    setTimeout(() => setGhostClicking(true), 1800)
+
+    setTimeout(() => {
+      setGhostClicking(false)
+      setShowEndConfirm(true)
+    }, 2100)
+
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!confirmEndBtnRef.current) { handleEndRef.current(); return }
+          const r = confirmEndBtnRef.current.getBoundingClientRect()
+          setGhostTarget({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+        })
+      })
+    }, 2600)
+
+    setTimeout(() => setGhostClicking(true), 3800)
+
+    setTimeout(() => {
+      setGhostClicking(false)
+      setGhostActive(false)
+      handleEndRef.current()
+    }, 4100)
+  }, [])
+
+  useEffect(() => {
+    if (autoEndingRef.current) return
+
+    const t = gemini.transcript
+    if (t.length < 2) return
+
+    let endIdx = -1
+    for (let i = t.length - 1; i >= 0; i--) {
+      if (t[i].startsWith('You:') && END_PHRASES.test(t[i])) {
+        endIdx = i
+        break
+      }
+    }
+    if (endIdx === -1) return
+
+    const responded = t.slice(endIdx + 1).some(l => l.startsWith('Gemini:'))
+    if (!responded) return
+
+    autoEndingRef.current = true
+    setTimeout(() => startAutoEnd(), 5000)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gemini.transcript.length])
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)
     const sec = s % 60
@@ -181,6 +254,7 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
         </span>
 
         <button
+          ref={endBtnRef}
           onClick={() => setShowEndConfirm(true)}
           className="px-4 py-2 bg-surface-100 border border-surface-200/40 text-surface-500 hover:text-red-400 hover:border-red-500/30 rounded-lg font-medium text-sm transition-all cursor-pointer"
         >
@@ -319,6 +393,7 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
                   Keep going
                 </button>
                 <button
+                  ref={confirmEndBtnRef}
                   onClick={handleEnd}
                   className="flex-1 py-3 bg-red-600 rounded-xl font-medium text-sm hover:bg-red-700 transition-colors cursor-pointer"
                 >
@@ -326,6 +401,54 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ghost cursor for auto-end */}
+      <AnimatePresence>
+        {ghostActive && (
+          <motion.div
+            className="fixed pointer-events-none"
+            style={{ zIndex: 200 }}
+            initial={{ x: ghostTarget.x, y: ghostTarget.y, opacity: 0 }}
+            animate={{
+              x: ghostTarget.x,
+              y: ghostTarget.y,
+              opacity: 1,
+              scale: ghostClicking ? 0.85 : 1,
+            }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{
+              x: { duration: 1.2, ease: [0.22, 1, 0.36, 1] },
+              y: { duration: 1.2, ease: [0.22, 1, 0.36, 1] },
+              opacity: { duration: 0.4 },
+              scale: { duration: 0.15 },
+            }}
+          >
+            <div className="absolute -top-1 -left-1 w-8 h-8 bg-ember-500/25 rounded-full blur-lg animate-pulse" />
+            <svg
+              width="20"
+              height="24"
+              viewBox="0 0 20 24"
+              className="drop-shadow-lg"
+              style={{ filter: 'drop-shadow(0 0 6px rgba(234, 88, 12, 0.4))' }}
+            >
+              <path
+                d="M0 0 L0 18 L4.5 13.5 L8 21 L11 19.5 L7.5 12 L13 12 Z"
+                fill="rgba(255,255,255,0.85)"
+                stroke="rgba(255,255,255,0.4)"
+                strokeWidth="0.5"
+              />
+            </svg>
+            {ghostClicking && (
+              <motion.div
+                className="absolute top-0 left-0 w-5 h-5 border-2 border-ember-400/50 rounded-full"
+                initial={{ scale: 0.5, opacity: 1 }}
+                animate={{ scale: 3, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
