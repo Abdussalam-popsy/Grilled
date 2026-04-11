@@ -3,6 +3,8 @@ import { motion } from 'motion/react'
 import type { Resource } from '../types'
 import { extractTextFromPDF } from '../lib/pdf'
 
+type InputMode = 'upload' | 'paste'
+
 interface Props {
   onContinue: (resources: Resource[]) => void
   onAutoSearch: () => void
@@ -13,6 +15,9 @@ export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
   const [resources, setResources] = useState<Resource[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [inputMode, setInputMode] = useState<InputMode>('upload')
+  const [pastedText, setPastedText] = useState('')
+  const [pasteCount, setPasteCount] = useState(0)
 
   const processFiles = useCallback(async (files: FileList) => {
     setIsProcessing(true)
@@ -46,6 +51,18 @@ export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
     if (e.dataTransfer.files.length) await processFiles(e.dataTransfer.files)
   }, [processFiles])
 
+  const addPastedText = useCallback(() => {
+    const trimmed = pastedText.trim()
+    if (!trimmed) return
+    setPasteCount(c => c + 1)
+    setResources(prev => [...prev, {
+      name: `Pasted text ${pasteCount + 1}`,
+      type: 'text',
+      content: trimmed,
+    }])
+    setPastedText('')
+  }, [pastedText, pasteCount])
+
   const removeResource = (index: number) => {
     setResources(prev => prev.filter((_, i) => i !== index))
   }
@@ -74,7 +91,7 @@ export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
             Add your materials
           </h2>
           <p className="text-surface-500 mb-8 leading-relaxed">
-            Upload study materials, or let Gemini find what it needs.
+            Upload files, paste text, or let Gemini find what it needs.
           </p>
         </motion.div>
 
@@ -83,34 +100,81 @@ export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
         >
-          {/* Drop zone */}
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
-            onDragLeave={() => setIsDragOver(false)}
-            className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 ${
-              isDragOver
-                ? 'border-ember-500 bg-ember-600/5'
-                : 'border-surface-200/40 hover:border-surface-300/60'
-            }`}
-          >
-            <div className="text-3xl mb-3 opacity-60">
-              {isProcessing ? '⏳' : '📄'}
-            </div>
-            <p className="text-surface-400 text-sm mb-4">
-              {isProcessing ? 'Processing...' : 'Drop PDFs or text files here'}
-            </p>
-            <label className="inline-block px-5 py-2.5 bg-surface-100 border border-surface-200/50 rounded-lg cursor-pointer hover:bg-surface-200/50 transition-colors text-sm font-medium">
-              Browse files
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.txt,.md"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </label>
+          {/* Input mode tabs */}
+          <div className="flex gap-1 mb-4 bg-surface-50 border border-surface-200/30 rounded-lg p-1">
+            <button
+              onClick={() => setInputMode('upload')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all cursor-pointer ${
+                inputMode === 'upload'
+                  ? 'bg-surface-100 text-white shadow-sm'
+                  : 'text-surface-400 hover:text-surface-500'
+              }`}
+            >
+              Upload files
+            </button>
+            <button
+              onClick={() => setInputMode('paste')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all cursor-pointer ${
+                inputMode === 'paste'
+                  ? 'bg-surface-100 text-white shadow-sm'
+                  : 'text-surface-400 hover:text-surface-500'
+              }`}
+            >
+              Paste text
+            </button>
           </div>
+
+          {inputMode === 'upload' ? (
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+              onDragLeave={() => setIsDragOver(false)}
+              className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 ${
+                isDragOver
+                  ? 'border-ember-500 bg-ember-600/5'
+                  : 'border-surface-200/40 hover:border-surface-300/60'
+              }`}
+            >
+              <div className="text-3xl mb-3 opacity-60">
+                {isProcessing ? '⏳' : '📄'}
+              </div>
+              <p className="text-surface-400 text-sm mb-4">
+                {isProcessing ? 'Processing...' : 'Drop PDFs or text files here'}
+              </p>
+              <label className="inline-block px-5 py-2.5 bg-surface-100 border border-surface-200/50 rounded-lg cursor-pointer hover:bg-surface-200/50 transition-colors text-sm font-medium">
+                Browse files
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.txt,.md"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder="Paste your notes, lecture content, study guide, or any text here..."
+                rows={6}
+                className="w-full bg-surface-50 border border-surface-200/60 rounded-xl p-4 text-white placeholder-surface-400 resize-none focus:outline-none focus:border-ember-600/50 focus:ring-1 focus:ring-ember-600/20 transition-all text-sm leading-relaxed"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-surface-400">
+                  {pastedText.length > 0 ? `${(pastedText.length / 1000).toFixed(1)}k chars` : ''}
+                </span>
+                <button
+                  onClick={addPastedText}
+                  disabled={!pastedText.trim()}
+                  className="px-5 py-2 bg-surface-100 border border-surface-200/50 rounded-lg text-sm font-medium hover:bg-surface-200/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  Add text
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Uploaded files */}
           {resources.length > 0 && (
@@ -140,7 +204,7 @@ export function ResourceUpload({ onContinue, onAutoSearch, onBack }: Props) {
             onClick={() => onContinue(resources)}
             className="mt-6 w-full py-3.5 bg-ember-600 text-white font-semibold rounded-xl hover:bg-ember-700 transition-all cursor-pointer text-[15px]"
           >
-            {resources.length > 0 ? `Continue with ${resources.length} file${resources.length > 1 ? 's' : ''}` : 'Continue without materials'}
+            {resources.length > 0 ? `Continue with ${resources.length} item${resources.length > 1 ? 's' : ''}` : 'Continue without materials'}
           </button>
 
           <div className="relative my-5">

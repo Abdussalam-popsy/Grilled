@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { motion } from 'motion/react'
 import type { Mode } from '../types'
 
@@ -28,6 +28,35 @@ interface Props {
 export function GoalInput({ mode, onSubmit, onBack }: Props) {
   const [goal, setGoal] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop()
+      return
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript
+      setGoal(prev => prev ? `${prev} ${text}` : text)
+      setSelectedTags(new Set())
+    }
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsListening(true)
+  }, [isListening])
 
   const tagGroups = mode === 'interview' ? INTERVIEW_TAGS : EXAM_TAGS
 
@@ -142,25 +171,41 @@ export function GoalInput({ mode, onSubmit, onBack }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
         >
-          <textarea
-            value={goal}
-            onChange={(e) => {
-              setGoal(e.target.value)
-              // Clear tag selection when user manually edits
-              if (selectedTags.size > 0) {
-                setSelectedTags(new Set())
-              }
-            }}
-            placeholder={placeholder}
-            rows={3}
-            className="w-full bg-surface-50 border border-surface-200/60 rounded-xl p-5 text-white placeholder-surface-400 resize-none focus:outline-none focus:border-ember-600/50 focus:ring-1 focus:ring-ember-600/20 transition-all text-[15px] leading-relaxed"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && goal.trim()) {
-                e.preventDefault()
-                onSubmit(goal.trim())
-              }
-            }}
-          />
+          <div className="relative">
+            <textarea
+              value={goal}
+              onChange={(e) => {
+                setGoal(e.target.value)
+                if (selectedTags.size > 0) {
+                  setSelectedTags(new Set())
+                }
+              }}
+              placeholder={placeholder}
+              rows={3}
+              className="w-full bg-surface-50 border border-surface-200/60 rounded-xl p-5 pr-14 text-white placeholder-surface-400 resize-none focus:outline-none focus:border-ember-600/50 focus:ring-1 focus:ring-ember-600/20 transition-all text-[15px] leading-relaxed"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && goal.trim()) {
+                  e.preventDefault()
+                  onSubmit(goal.trim())
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`absolute right-3 top-3 w-9 h-9 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                isListening
+                  ? 'bg-ember-600/20 text-ember-400 animate-pulse'
+                  : 'bg-surface-100 text-surface-400 hover:text-white hover:bg-surface-200/80'
+              }`}
+              title="Dictate with voice"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v4a2.5 2.5 0 0 0 5 0v-4A2.5 2.5 0 0 0 8 1Z" fill="currentColor"/>
+                <path d="M3.5 6.5a.5.5 0 0 1 1 0 3.5 3.5 0 0 0 7 0 .5.5 0 0 1 1 0 4.5 4.5 0 0 1-4 4.473V13.5h2a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1h2v-2.527a4.5 4.5 0 0 1-4-4.473Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
 
           <button
             onClick={() => goal.trim() && onSubmit(goal.trim())}
