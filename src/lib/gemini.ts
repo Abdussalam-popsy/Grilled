@@ -25,19 +25,25 @@ export class GeminiLiveSession {
     this.callbacks = callbacks
   }
 
-  connect(mode: Mode, goal: string, resourceContext: string): void {
-    const model = 'gemini-2.5-flash-preview-native-audio-dialog'
+  connect(mode: Mode, goal: string, resourceContext: string, config?: { textOnly?: boolean; systemInstruction?: string }): void {
+    const model = config?.textOnly
+      ? 'gemini-2.5-flash'
+      : 'gemini-2.5-flash-preview-native-audio-dialog'
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
 
-    console.log('[Gemini] Connecting to Live API...')
+    const label = config?.textOnly ? '[Gemini:Analyst]' : '[Gemini:Interviewer]'
+    console.log(`${label} Connecting to Live API...`)
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log('[Gemini] WebSocket open, sending setup...')
-      const setupMessage = {
-        setup: {
-          model: `models/${model}`,
-          generation_config: {
+      console.log(`${label} WebSocket open, sending setup...`)
+
+      const systemText = config?.systemInstruction
+        ?? getSystemInstruction(mode, goal, resourceContext)
+
+      const generationConfig = config?.textOnly
+        ? { response_modalities: ['TEXT'] }
+        : {
             response_modalities: ['AUDIO'],
             speech_config: {
               voice_config: {
@@ -46,15 +52,24 @@ export class GeminiLiveSession {
                 }
               }
             }
-          },
-          system_instruction: {
-            parts: [{ text: getSystemInstruction(mode, goal, resourceContext) }]
-          },
-          tools: [{ google_search: {} }],
-          output_audio_transcription: {},
-          input_audio_transcription: {},
-        }
+          }
+
+      const setup: Record<string, unknown> = {
+        model: `models/${model}`,
+        generation_config: generationConfig,
+        system_instruction: {
+          parts: [{ text: systemText }]
+        },
       }
+
+      // Only add audio features for non-text sessions
+      if (!config?.textOnly) {
+        setup.tools = [{ google_search: {} }]
+        setup.output_audio_transcription = {}
+        setup.input_audio_transcription = {}
+      }
+
+      const setupMessage = { setup }
       this.ws?.send(JSON.stringify(setupMessage))
     }
 

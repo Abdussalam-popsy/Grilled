@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import { useMediaDevices } from '../hooks/useMediaDevices'
 import { useGeminiSession } from '../hooks/useGeminiSession'
 import { useAudioStreamer } from '../hooks/useAudioStreamer'
+import { useAnalystSession } from '../hooks/useAnalystSession'
+import { AnalysisPanel } from './AnalysisPanel'
 import type { Mode } from '../types'
 
 interface Props {
@@ -15,6 +17,7 @@ interface Props {
 export function Session({ mode, goal, resourceContext, onEnd }: Props) {
   const media = useMediaDevices()
   const gemini = useGeminiSession()
+  const analyst = useAnalystSession()
   const audioStreamer = useAudioStreamer()
   const frameIntervalRef = useRef<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -23,12 +26,14 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
   const waveformRef = useRef<HTMLCanvasElement | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animFrameRef = useRef<number>(0)
+  const prevTranscriptLenRef = useRef(0)
 
   // Start everything on mount
   useEffect(() => {
     const init = async () => {
       await media.start()
       gemini.connect(mode, goal, resourceContext)
+      analyst.connect(goal)
     }
     init()
 
@@ -41,6 +46,15 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Feed transcript to analyst when new lines appear
+  useEffect(() => {
+    if (gemini.transcript.length > prevTranscriptLenRef.current && analyst.isReady) {
+      analyst.feedTranscript(gemini.transcript)
+      prevTranscriptLenRef.current = gemini.transcript.length
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gemini.transcript.length, analyst.isReady])
 
   // Waveform visualizer
   const startWaveform = useCallback((stream: MediaStream) => {
@@ -83,11 +97,10 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
         const x = i * (barWidth + gap)
         const y = (h - barHeight) / 2
 
-        // Ember gradient based on intensity
         const intensity = Math.min(1, value * 1.5)
         const r = Math.round(234 + (245 - 234) * intensity)
         const g = Math.round(88 + (158 - 88) * intensity)
-        const b = Math.round(12 + (11 - 12) * intensity)
+        const b = Math.round(12 + (245 - 12) * intensity)
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.4 + intensity * 0.6})`
 
         ctx.beginPath()
@@ -130,6 +143,7 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     media.stop()
     gemini.disconnect()
+    analyst.disconnect()
     onEnd(gemini.transcript)
   }
 
@@ -141,8 +155,8 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
 
   return (
     <div className="grain min-h-screen bg-surface-0 text-white flex flex-col relative overflow-hidden">
-      {/* Subtle ambient glow behind camera */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-ember-600/4 blur-[100px] pointer-events-none" />
+      {/* Subtle ambient glow */}
+      <div className="absolute top-0 left-1/3 w-[600px] h-[400px] rounded-full bg-ember-600/4 blur-[100px] pointer-events-none" />
 
       {/* Top bar */}
       <motion.div
@@ -174,102 +188,108 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
         </button>
       </motion.div>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 relative z-10">
-        {/* Camera preview */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-md aspect-[4/3] bg-surface-50 rounded-2xl overflow-hidden border border-surface-200/20"
-        >
-          <video
-            ref={media.videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover scale-x-[-1]"
-          />
-          {!media.isActive && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
-            </div>
-          )}
-
-          {/* Mode badge */}
-          <div className="absolute top-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md text-xs text-surface-600 font-medium">
-            {mode === 'interview' ? '💼 Interview' : '📚 Exam'}
-          </div>
-
-          {/* Observation indicators — shows Gemini is watching */}
-          {gemini.isReady && (
-            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md">
-                <div className="w-1.5 h-1.5 rounded-full bg-ember-500 animate-pulse" />
-                <span className="text-[10px] text-ember-400/80 uppercase tracking-wider font-medium">Observing</span>
+      {/* Main content — split layout */}
+      <div className="flex-1 flex flex-row relative z-10 overflow-hidden">
+        {/* Left: camera + waveform + transcript (60%) */}
+        <div className="w-[60%] flex flex-col items-center justify-center p-6 gap-5">
+          {/* Camera preview */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-full max-w-lg aspect-[4/3] bg-surface-50 rounded-2xl overflow-hidden border border-surface-200/20"
+          >
+            <video
+              ref={media.videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover scale-x-[-1]"
+            />
+            {!media.isActive && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
               </div>
-              <div className="flex gap-2">
-                <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md text-[10px] text-surface-500 uppercase tracking-wider">
-                  Eye contact
+            )}
+
+            {/* Observation indicators */}
+            {gemini.isReady && (
+              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md">
+                  <div className="w-1.5 h-1.5 rounded-full bg-ember-500 animate-pulse" />
+                  <span className="text-[10px] text-ember-400/80 uppercase tracking-wider font-medium">Observing</span>
                 </div>
-                <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md text-[10px] text-surface-500 uppercase tracking-wider">
-                  Confidence
+                <div className="flex gap-2">
+                  <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md text-[10px] text-surface-500 uppercase tracking-wider">
+                    Eye contact
+                  </div>
+                  <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md text-[10px] text-surface-500 uppercase tracking-wider">
+                    Confidence
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </motion.div>
+            )}
+          </motion.div>
 
-        {/* Waveform */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="w-full max-w-md h-16"
-        >
-          <canvas
-            ref={waveformRef}
-            className="w-full h-full"
-          />
-        </motion.div>
-
-        {/* Live transcript (last few lines) */}
-        <AnimatePresence mode="popLayout">
-          {gemini.transcript.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="w-full max-w-md max-h-32 overflow-y-auto bg-surface-50/50 backdrop-blur-sm border border-surface-200/20 rounded-xl p-4 space-y-2"
-            >
-              {gemini.transcript.slice(-4).map((line, i) => (
-                <motion.p
-                  key={`${gemini.transcript.length - 4 + i}`}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`text-sm leading-relaxed ${
-                    line.startsWith('Gemini:')
-                      ? 'text-ember-400'
-                      : 'text-surface-500'
-                  }`}
-                >
-                  {line}
-                </motion.p>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Errors */}
-        {(gemini.error || media.error) && (
+          {/* Waveform */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-red-950/30 border border-red-900/40 rounded-lg px-4 py-3 text-red-400 text-sm max-w-md w-full"
+            transition={{ delay: 0.3 }}
+            className="w-full max-w-lg h-14"
           >
-            {gemini.error || media.error}
+            <canvas
+              ref={waveformRef}
+              className="w-full h-full"
+            />
           </motion.div>
-        )}
+
+          {/* Live transcript (last few lines) */}
+          <AnimatePresence mode="popLayout">
+            {gemini.transcript.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="w-full max-w-lg max-h-28 overflow-y-auto bg-surface-50/50 backdrop-blur-sm border border-surface-200/20 rounded-xl p-4 space-y-2"
+              >
+                {gemini.transcript.slice(-4).map((line, i) => (
+                  <motion.p
+                    key={`${gemini.transcript.length - 4 + i}`}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`text-sm leading-relaxed ${
+                      line.startsWith('Gemini:')
+                        ? 'text-ember-400'
+                        : 'text-surface-500'
+                    }`}
+                  >
+                    {line}
+                  </motion.p>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Errors */}
+          {(gemini.error || media.error) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-red-950/30 border border-red-900/40 rounded-lg px-4 py-3 text-red-400 text-sm max-w-lg w-full"
+            >
+              {gemini.error || media.error}
+            </motion.div>
+          )}
+        </div>
+
+        {/* Right: analysis panel (40%) */}
+        <div className="w-[40%]">
+          <AnalysisPanel
+            analysis={analyst.analysis}
+            isConnected={analyst.isReady}
+          />
+        </div>
       </div>
 
       {/* End session confirmation overlay */}
