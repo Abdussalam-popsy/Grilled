@@ -52,6 +52,7 @@ export function useAnalystSession(): UseAnalystSessionReturn {
               clarity: obj.clarity,
               strengths: Array.isArray(obj.strengths) ? obj.strengths : [],
               gaps: Array.isArray(obj.gaps) ? obj.gaps : [],
+              coaching: typeof obj.coaching === 'string' ? obj.coaching : '',
             }
             return { parsed: feedback, remaining: buffer.slice(i + 1) }
           }
@@ -103,7 +104,10 @@ export function useAnalystSession(): UseAnalystSessionReturn {
   }, [tryParseJSON])
 
   const feedTranscript = useCallback((lines: string[]) => {
-    if (!sessionRef.current?.connected) return
+    if (!sessionRef.current?.connected) {
+      console.warn('[Analyst] feedTranscript called but session not connected')
+      return
+    }
     const newLines = lines.slice(lastFedIndexRef.current)
     if (newLines.length === 0) return
 

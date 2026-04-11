@@ -44,6 +44,7 @@ export interface AnswerFeedback {
   clarity: number
   strengths: string[]
   gaps: string[]
+  coaching: string
 }
 
 export interface AnalysisState {
@@ -52,7 +53,7 @@ export interface AnalysisState {
   isAnalyzing: boolean
 }
 
-export type AppScreen = 'landing' | 'goal' | 'resources' | 'confirm' | 'session' | 'report'
+export type AppScreen = 'landing' | 'profile' | 'goal' | 'resources' | 'confirm' | 'session' | 'report'
 
 export interface SessionState {
   mode: Mode
@@ -61,4 +62,18 @@ export interface SessionState {
   contextSummary: string
   transcript: string[]
   gapReport: GapReport | null
+  userName: string
+  resumeContext: string
+}
+
+export interface SessionRecord {
+  date: string
+  goal: string
+  role: string
+  readinessScore: number
+  avgAccuracy: number
+  avgDepth: number
+  avgClarity: number
+  duration: number
+  questionCount: number
 }

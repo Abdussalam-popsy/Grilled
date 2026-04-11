@@ -1,80 +1,91 @@
 import { useState } from 'react'
-import type { AppScreen, Mode, Resource } from './types'
+import type { AppScreen, Mode, AnswerFeedback } from './types'
+import { ProfileSetup } from './components/ProfileSetup'
 import { GoalInput } from './components/GoalInput'
-import { ResourceUpload } from './components/ResourceUpload'
 import { ResourceConfirm } from './components/ResourceConfirm'
 import { Session } from './components/Session'
 import { GapReport } from './components/GapReport'
 import { useGapReport } from './hooks/useGapReport'
+import { saveSession } from './lib/sessionHistory'
 
 function App() {
-  const [screen, setScreen] = useState<AppScreen>('goal')
+  const [screen, setScreen] = useState<AppScreen>('profile')
   const [mode] = useState<Mode>('interview')
   const [goal, setGoal] = useState('')
-  const [resources, setResources] = useState<Resource[]>([])
-  const [resourceSummary, setResourceSummary] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
+  const [userName, setUserName] = useState('')
+  const [resumeContext, setResumeContext] = useState('')
+  const [feedbackHistory, setFeedbackHistory] = useState<AnswerFeedback[]>([])
+  const [sessionDuration, setSessionDuration] = useState(0)
   const gapReport = useGapReport()
+
+  const handleProfileContinue = (name: string, resume: string) => {
+    setUserName(name)
+    setResumeContext(resume)
+    setScreen('goal')
+  }
 
   const handleGoalSubmit = (submittedGoal: string) => {
     setGoal(submittedGoal)
-    setScreen('resources')
-  }
-
-  const handleResourcesContinue = (uploadedResources: Resource[]) => {
-    setResources(uploadedResources)
-    if (uploadedResources.length > 0) {
-      const summary = uploadedResources.map(r => `- ${r.name} (${r.content.length} characters extracted)`).join('\n')
-      setResourceSummary(summary)
-    } else {
-      setResourceSummary('')
-    }
     setScreen('confirm')
   }
 
-  const handleAutoSearch = () => {
-    setIsSearching(true)
-    // Gemini web grounding will be used in the session itself
-    // For now, just move to confirm with a note that we'll use web grounding
-    setResourceSummary('I\'ll use web grounding to search for relevant materials when the session starts.')
-    setIsSearching(false)
-    setScreen('confirm')
-  }
-
-  const getResourceContext = (): string => {
-    if (resources.length === 0) return ''
-    return resources.map(r => `--- ${r.name} ---\n${r.content}`).join('\n\n')
-  }
-
-  const handleSessionEnd = async (transcript: string[]) => {
+  const handleSessionEnd = async (transcript: string[], history: AnswerFeedback[], duration: number) => {
+    setFeedbackHistory(history)
+    setSessionDuration(duration)
     setScreen('report')
     await gapReport.generate(transcript, mode, goal)
   }
 
-  const handleRestart = () => {
-    setScreen('goal')
-    setGoal('')
-    setResources([])
-    setResourceSummary('')
+  // Save to localStorage once the report is ready
+  const handleReportReady = (readinessScore: number) => {
+    const avgAccuracy = feedbackHistory.length > 0
+      ? feedbackHistory.reduce((sum, f) => sum + f.accuracy, 0) / feedbackHistory.length
+      : 0
+    const avgDepth = feedbackHistory.length > 0
+      ? feedbackHistory.reduce((sum, f) => sum + f.depth, 0) / feedbackHistory.length
+      : 0
+    const avgClarity = feedbackHistory.length > 0
+      ? feedbackHistory.reduce((sum, f) => sum + f.clarity, 0) / feedbackHistory.length
+      : 0
+
+    saveSession({
+      date: new Date().toISOString(),
+      goal,
+      role: goal,
+      readinessScore,
+      avgAccuracy: Math.round(avgAccuracy * 10) / 10,
+      avgDepth: Math.round(avgDepth * 10) / 10,
+      avgClarity: Math.round(avgClarity * 10) / 10,
+      duration: sessionDuration,
+      questionCount: feedbackHistory.length,
+    })
   }
 
+  const handleRestart = () => {
+    setScreen('profile')
+    setGoal('')
+    setUserName('')
+    setResumeContext('')
+    setFeedbackHistory([])
+    setSessionDuration(0)
+  }
+
+  const resourceSummary = resumeContext
+    ? `Resume uploaded. I'll use your resume context along with web grounding during the session.`
+    : `No specific materials — I'll use my general knowledge and web grounding during the session.`
+
   switch (screen) {
+    case 'profile':
+      return <ProfileSetup onContinue={handleProfileContinue} />
+
     case 'landing':
     case 'goal':
       return (
         <GoalInput
           mode={mode}
+          userName={userName}
           onSubmit={handleGoalSubmit}
-          onBack={() => setScreen('goal')}
-        />
-      )
-
-    case 'resources':
-      return (
-        <ResourceUpload
-          onContinue={handleResourcesContinue}
-          onAutoSearch={handleAutoSearch}
-          onBack={() => setScreen('goal')}
+          onBack={() => setScreen('profile')}
         />
       )
 
@@ -82,9 +93,9 @@ function App() {
       return (
         <ResourceConfirm
           summary={resourceSummary}
-          isLoading={isSearching}
+          isLoading={false}
           onConfirm={() => setScreen('session')}
-          onBack={() => setScreen('resources')}
+          onBack={() => setScreen('goal')}
         />
       )
 
@@ -93,7 +104,8 @@ function App() {
         <Session
           mode={mode}
           goal={goal}
-          resourceContext={getResourceContext()}
+          resourceContext={resumeContext}
+          userName={userName}
           onEnd={handleSessionEnd}
         />
       )
@@ -106,7 +118,7 @@ function App() {
             <div className="relative z-10 flex flex-col items-center">
               <div className="w-8 h-8 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin mb-6" />
               <p className="font-display text-2xl italic text-surface-600 mb-2">Analyzing your session...</p>
-              <p className="text-surface-400 text-sm">Generating your gap report</p>
+              <p className="text-surface-400 text-sm">Generating your dashboard</p>
             </div>
           </div>
         )
@@ -125,18 +137,21 @@ function App() {
         )
       }
       if (gapReport.report) {
-        return <GapReport report={gapReport.report} onRestart={handleRestart} />
+        return (
+          <GapReport
+            report={gapReport.report}
+            feedbackHistory={feedbackHistory}
+            sessionDuration={sessionDuration}
+            userName={userName}
+            onRestart={handleRestart}
+            onReportReady={handleReportReady}
+          />
+        )
       }
       return null
 
     default:
-      return (
-        <GoalInput
-          mode={mode}
-          onSubmit={handleGoalSubmit}
-          onBack={() => setScreen('goal')}
-        />
-      )
+      return <ProfileSetup onContinue={handleProfileContinue} />
   }
 }
 

@@ -12,7 +12,7 @@ interface UseGeminiSessionReturn {
   isReady: boolean
   transcript: string[]
   error: string | null
-  connect: (mode: Mode, goal: string, resourceContext: string) => void
+  connect: (mode: Mode, goal: string, resourceContext: string, userName?: string) => void
   disconnect: () => void
   sendAudio: (base64Audio: string) => void
   sendVideoFrame: (base64Image: string) => void
@@ -67,7 +67,7 @@ export function useGeminiSession(): UseGeminiSessionReturn {
     player.nextStartTime += audioBuffer.duration
   }, [])
 
-  const connect = useCallback((mode: Mode, goal: string, resourceContext: string) => {
+  const connect = useCallback((mode: Mode, goal: string, resourceContext: string, userName?: string) => {
     const session = new GeminiLiveSession({
       onAudioOutput: (audioData) => {
         playAudioChunk(audioData)
@@ -127,7 +127,7 @@ export function useGeminiSession(): UseGeminiSessionReturn {
       }
     })
 
-    session.connect(mode, goal, resourceContext)
+    session.connect(mode, goal, resourceContext, { userName })
     sessionRef.current = session
     setIsConnected(true)
     setError(null)

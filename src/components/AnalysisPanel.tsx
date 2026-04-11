@@ -77,6 +77,15 @@ function FeedbackCard({ feedback, index }: { feedback: AnswerFeedback; index: nu
           ))}
         </div>
       )}
+
+      {feedback.coaching && (
+        <div className="bg-indigo-950/30 border border-indigo-500/20 rounded-lg px-3 py-2.5">
+          <p className="text-[10px] text-indigo-400/60 uppercase tracking-wider font-semibold mb-1">Coach tip</p>
+          <p className="text-xs text-indigo-300/90 leading-relaxed italic">
+            {feedback.coaching}
+          </p>
+        </div>
+      )}
     </motion.div>
   )
 }

@@ -25,8 +25,10 @@ export class GeminiLiveSession {
     this.callbacks = callbacks
   }
 
-  connect(mode: Mode, goal: string, resourceContext: string, config?: { textOnly?: boolean; systemInstruction?: string }): void {
-    const model = 'gemini-2.5-flash-native-audio-preview-12-2025'
+  connect(mode: Mode, goal: string, resourceContext: string, config?: { textOnly?: boolean; systemInstruction?: string; userName?: string }): void {
+    const model = config?.textOnly
+      ? 'gemini-2.5-flash'
+      : 'gemini-2.5-flash-native-audio-preview-12-2025'
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
 
     const label = config?.textOnly ? '[Gemini:Analyst]' : '[Gemini:Interviewer]'
@@ -37,7 +39,7 @@ export class GeminiLiveSession {
       console.log(`${label} WebSocket open, sending setup...`)
 
       const systemText = config?.systemInstruction
-        ?? getSystemInstruction(mode, goal, resourceContext)
+        ?? getSystemInstruction(mode, goal, resourceContext, config?.userName)
 
       const generationConfig = config?.textOnly
         ? { response_modalities: ['TEXT'] }

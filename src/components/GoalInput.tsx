@@ -7,9 +7,11 @@ interface TagGroup {
   tags: string[]
 }
 
-const INTERVIEW_TAGS: TagGroup[] = [
+const ROLE_TAGS: TagGroup[] = [
+  { label: 'Engineering', tags: ['Frontend', 'Backend', 'Fullstack', 'Mobile', 'DevOps', 'ML/AI', 'Data Engineer'] },
+  { label: 'Design', tags: ['Design Engineer', 'Product Designer', 'UX Researcher'] },
+  { label: 'Product & Strategy', tags: ['Product Manager', 'TPM', 'Data Analyst', 'Engineering Manager'] },
   { label: 'Company', tags: ['Google', 'Meta', 'Amazon', 'Apple', 'Microsoft', 'Stripe', 'Figma'] },
-  { label: 'Role', tags: ['Frontend', 'Backend', 'Fullstack', 'System Design', 'Product', 'Behavioral', 'Data Science'] },
   { label: 'Level', tags: ['Junior', 'Mid-Level', 'Senior', 'Staff', 'L3', 'L4', 'L5'] },
 ]
 
@@ -21,11 +23,12 @@ const EXAM_TAGS: TagGroup[] = [
 
 interface Props {
   mode: Mode
+  userName?: string
   onSubmit: (goal: string) => void
   onBack: () => void
 }
 
-export function GoalInput({ mode, onSubmit, onBack }: Props) {
+export function GoalInput({ mode, userName, onSubmit, onBack }: Props) {
   const [goal, setGoal] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [isListening, setIsListening] = useState(false)
@@ -58,14 +61,16 @@ export function GoalInput({ mode, onSubmit, onBack }: Props) {
     setIsListening(true)
   }, [isListening])
 
-  const tagGroups = mode === 'interview' ? INTERVIEW_TAGS : EXAM_TAGS
+  const tagGroups = mode === 'interview' ? ROLE_TAGS : EXAM_TAGS
 
-  const placeholder = mode === 'interview'
-    ? 'e.g. "Google L4 Frontend Engineer interview tomorrow"'
-    : 'e.g. "Biochemistry exam on protein synthesis in 6 hours"'
+  const placeholder = userName
+    ? `What role are you prepping for, ${userName}?`
+    : mode === 'interview'
+      ? 'e.g. "Google L4 Frontend Engineer interview tomorrow"'
+      : 'e.g. "Biochemistry exam on protein synthesis in 6 hours"'
 
   const heading = mode === 'interview'
-    ? 'What are you interviewing for?'
+    ? (userName ? `What are you interviewing for, ${userName}?` : 'What are you interviewing for?')
     : 'What are you studying for?'
 
   const toggleTag = useCallback((tag: string) => {
@@ -77,7 +82,6 @@ export function GoalInput({ mode, onSubmit, onBack }: Props) {
         next.add(tag)
       }
 
-      // Build goal text from selected tags
       const parts = Array.from(next)
       if (parts.length > 0) {
         if (mode === 'interview') {
@@ -95,7 +99,6 @@ export function GoalInput({ mode, onSubmit, onBack }: Props) {
 
   return (
     <div className="grain min-h-screen bg-surface-0 text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
-      {/* Ambient glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-ember-600/6 blur-[100px] pointer-events-none" />
 
       <motion.button
@@ -138,7 +141,7 @@ export function GoalInput({ mode, onSubmit, onBack }: Props) {
               key={group.label}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.15 + gi * 0.08 }}
+              transition={{ duration: 0.4, delay: 0.15 + gi * 0.06 }}
             >
               <p className="text-xs text-surface-400 uppercase tracking-wider font-medium mb-2">
                 {group.label}
