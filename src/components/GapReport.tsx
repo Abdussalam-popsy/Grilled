@@ -264,13 +264,13 @@ export function GapReport({ report, feedbackHistory, sessionDuration, userName, 
     <div className="grain min-h-screen bg-surface-0 text-white relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-ember-600/4 blur-[120px] pointer-events-none" />
 
-      <div className="max-w-2xl mx-auto px-6 py-12 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 py-12 relative z-10">
         {/* 1. Score Hero */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="text-center mb-12"
+          className="text-center mb-12 max-w-2xl mx-auto"
         >
           <p className="text-ember-500 text-sm font-medium uppercase tracking-wider mb-6">Session Complete</p>
 
@@ -320,125 +320,125 @@ export function GapReport({ report, feedbackHistory, sessionDuration, userName, 
           </p>
         </motion.div>
 
-        {/* 2. Performance Overview (avg scores) */}
-        {feedbackHistory.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mb-8"
-          >
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-2 h-2 rounded-full bg-blue-400" />
-              <h2 className="text-lg font-semibold tracking-tight">Performance Overview</h2>
-            </div>
-            <div className="bg-surface-50/60 border border-surface-200/20 rounded-xl p-5 space-y-3">
-              <ScoreBar label="Accuracy" score={avgAccuracy} />
-              <ScoreBar label="Depth" score={avgDepth} />
-              <ScoreBar label="Clarity" score={avgClarity} />
-            </div>
-          </motion.section>
-        )}
+        {/* 2. Performance Overview + Question Breakdown — side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {feedbackHistory.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-2 h-2 rounded-full bg-blue-400" />
+                <h2 className="text-lg font-semibold tracking-tight">Performance Overview</h2>
+              </div>
+              <div className="bg-surface-50/60 border border-surface-200/20 rounded-xl p-5 space-y-3">
+                <ScoreBar label="Accuracy" score={avgAccuracy} />
+                <ScoreBar label="Depth" score={avgDepth} />
+                <ScoreBar label="Clarity" score={avgClarity} />
+              </div>
+            </motion.section>
+          )}
 
-        {/* 3. Question Breakdown */}
-        <div className="mb-8">
-          <QuestionBreakdown feedback={feedbackHistory} />
+          {/* 3. Question Breakdown */}
+          <div>
+            <QuestionBreakdown feedback={feedbackHistory} />
+          </div>
         </div>
 
-        {/* 4. Strong / Shaky / Weak cards */}
-        {report.strong.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mb-8"
-          >
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-2 h-2 rounded-full bg-green-400" />
-              <h2 className="text-lg font-semibold tracking-tight">Strong</h2>
-              <span className="text-xs text-surface-400 ml-auto">{report.strong.length} topics</span>
-            </div>
-            <div className="space-y-2">
-              {report.strong.map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + i * 0.05 }}
-                  className="bg-green-950/20 border border-green-900/20 rounded-xl px-5 py-4"
-                >
-                  <div className="font-medium text-[15px]">{t.topic}</div>
-                  <div className="text-sm text-green-400/60 mt-1.5 leading-relaxed">{t.justification}</div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        )}
+        {/* 4. Strong / Shaky / Weak cards — responsive grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+          {report.strong.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+                <h2 className="text-lg font-semibold tracking-tight">Strong</h2>
+                <span className="text-xs text-surface-400 ml-auto">{report.strong.length} topics</span>
+              </div>
+              <div className="space-y-2">
+                {report.strong.map((t, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + i * 0.05 }}
+                    className="bg-green-950/20 border border-green-900/20 rounded-xl px-5 py-4"
+                  >
+                    <div className="font-medium text-[15px]">{t.topic}</div>
+                    <div className="text-sm text-green-400/60 mt-1.5 leading-relaxed">{t.justification}</div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.section>
+          )}
 
-        {report.shaky.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="mb-8"
-          >
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              <h2 className="text-lg font-semibold tracking-tight">Needs Review</h2>
-              <span className="text-xs text-surface-400 ml-auto">{report.shaky.length} topics</span>
-            </div>
-            <div className="space-y-2">
-              {report.shaky.map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 + i * 0.05 }}
-                  className="bg-amber-950/20 border border-amber-900/20 rounded-xl px-5 py-4"
-                >
-                  <div className="font-medium text-[15px]">{t.topic}</div>
-                  <div className="text-sm text-amber-400/60 mt-1.5 leading-relaxed">{t.what_was_missing}</div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        )}
+          {report.shaky.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                <h2 className="text-lg font-semibold tracking-tight">Needs Review</h2>
+                <span className="text-xs text-surface-400 ml-auto">{report.shaky.length} topics</span>
+              </div>
+              <div className="space-y-2">
+                {report.shaky.map((t, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 + i * 0.05 }}
+                    className="bg-amber-950/20 border border-amber-900/20 rounded-xl px-5 py-4"
+                  >
+                    <div className="font-medium text-[15px]">{t.topic}</div>
+                    <div className="text-sm text-amber-400/60 mt-1.5 leading-relaxed">{t.what_was_missing}</div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.section>
+          )}
 
-        {report.weak.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="mb-8"
-          >
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-2 h-2 rounded-full bg-red-400" />
-              <h2 className="text-lg font-semibold tracking-tight">Priority Review</h2>
-              <span className="text-xs text-surface-400 ml-auto">{report.weak.length} topics</span>
-            </div>
-            <div className="space-y-2">
-              {report.weak.map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 + i * 0.05 }}
-                  className="bg-red-950/20 border border-red-900/20 rounded-xl px-5 py-4"
-                >
-                  <div className="font-medium text-[15px]">{t.topic}</div>
-                  <div className="text-sm text-red-400/60 mt-2 leading-relaxed">
-                    <span className="text-red-400/40 uppercase text-xs tracking-wider font-semibold">Answer: </span>
-                    {t.correct_answer}
-                  </div>
-                  <div className="text-sm text-red-400/40 mt-1.5 leading-relaxed">
-                    <span className="text-red-400/30 uppercase text-xs tracking-wider font-semibold">Review: </span>
-                    {t.review_angle}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        )}
+          {report.weak.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <h2 className="text-lg font-semibold tracking-tight">Priority Review</h2>
+                <span className="text-xs text-surface-400 ml-auto">{report.weak.length} topics</span>
+              </div>
+              <div className="space-y-2">
+                {report.weak.map((t, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.6 + i * 0.05 }}
+                    className="bg-red-950/20 border border-red-900/20 rounded-xl px-5 py-4"
+                  >
+                    <div className="font-medium text-[15px]">{t.topic}</div>
+                    <div className="text-sm text-red-400/60 mt-2 leading-relaxed">
+                      <span className="text-red-400/40 uppercase text-xs tracking-wider font-semibold">Answer: </span>
+                      {t.correct_answer}
+                    </div>
+                    <div className="text-sm text-red-400/40 mt-1.5 leading-relaxed">
+                      <span className="text-red-400/30 uppercase text-xs tracking-wider font-semibold">Review: </span>
+                      {t.review_angle}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.section>
+          )}
+        </div>
 
         <div className="mb-8">
           <ProgressChart history={sessionHistory} />

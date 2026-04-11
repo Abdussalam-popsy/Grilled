@@ -4,6 +4,7 @@ import type { CoachingState, CoachingTip } from '../types'
 interface Props {
   analysis: CoachingState
   isConnected: boolean
+  error?: string | null
 }
 
 function CoachingCard({ tip, isCurrent }: { tip: CoachingTip; isCurrent: boolean }) {
@@ -65,7 +66,7 @@ function CoachingCard({ tip, isCurrent }: { tip: CoachingTip; isCurrent: boolean
   )
 }
 
-export function AnalysisPanel({ analysis, isConnected }: Props) {
+export function AnalysisPanel({ analysis, isConnected, error }: Props) {
   return (
     <div className="h-full flex flex-col bg-surface-0/50 border-l border-surface-200/20">
       <div className="px-5 py-4 border-b border-surface-200/20 flex items-center gap-3">
@@ -94,11 +95,25 @@ export function AnalysisPanel({ analysis, isConnected }: Props) {
               exit={{ opacity: 0 }}
               className="flex flex-col items-center justify-center h-full text-center py-12"
             >
-              <div className="w-10 h-10 rounded-full border border-surface-200/30 flex items-center justify-center mb-4">
-                <div className="w-3 h-3 rounded-full bg-surface-300/40" />
-              </div>
-              <p className="text-sm text-surface-400 mb-1">Waiting for first question...</p>
-              <p className="text-xs text-surface-300">Hints will appear here to help you answer</p>
+              {!isConnected && error ? (
+                <>
+                  <div className="w-10 h-10 rounded-full border border-red-500/30 bg-red-950/30 flex items-center justify-center mb-4">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 6v4m0 2.5h.01M3.34 15h11.32c1.1 0 1.78-1.19 1.23-2.14L10.23 3.3c-.55-.95-1.91-.95-2.46 0L2.11 12.86c-.55.95.13 2.14 1.23 2.14z" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-red-400 mb-1">Analyst connection failed</p>
+                  <p className="text-xs text-red-400/60 max-w-[200px] leading-relaxed">{error}</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full border border-surface-200/30 flex items-center justify-center mb-4">
+                    <div className="w-3 h-3 rounded-full bg-surface-300/40" />
+                  </div>
+                  <p className="text-sm text-surface-400 mb-1">Waiting for first answer...</p>
+                  <p className="text-xs text-surface-300">Scores will appear here in real-time</p>
+                </>
+              )}
             </motion.div>
           )}
 

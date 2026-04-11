@@ -63,6 +63,19 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Flush accumulated transcript when analyst becomes ready (handles race condition)
+  const analystWasReadyRef = useRef(false)
+  useEffect(() => {
+    if (analyst.isReady && !analystWasReadyRef.current) {
+      analystWasReadyRef.current = true
+      if (gemini.transcript.length > 0) {
+        analyst.feedTranscript(gemini.transcript)
+        prevTranscriptLenRef.current = gemini.transcript.length
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyst.isReady])
+
   // Feed transcript to analyst when new lines appear
   useEffect(() => {
     if (gemini.transcript.length > prevTranscriptLenRef.current && analyst.isReady) {
@@ -71,6 +84,13 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gemini.transcript.length, analyst.isReady])
+
+  // Attach screen share stream to video element
+  useEffect(() => {
+    if (media.screenVideoRef.current) {
+      media.screenVideoRef.current.srcObject = media.screenStream
+    }
+  }, [media.screenStream, media.screenVideoRef])
 
   // Waveform visualizer
   const startWaveform = useCallback((stream: MediaStream) => {
@@ -218,32 +238,60 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
           {formatTime(elapsed)}
         </span>
 
-        <button
-          onClick={() => setShowEndConfirm(true)}
-          className="px-4 py-2 bg-surface-100 border border-surface-200/40 text-surface-500 hover:text-red-400 hover:border-red-500/30 rounded-lg font-medium text-sm transition-all cursor-pointer"
-        >
-          End Session
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={media.isScreenSharing ? media.stopScreenShare : media.startScreenShare}
+            className={`px-4 py-2 border rounded-lg font-medium text-sm transition-all cursor-pointer ${
+              media.isScreenSharing
+                ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-400 hover:bg-indigo-600/30'
+                : 'bg-surface-100 border-surface-200/40 text-surface-500 hover:text-indigo-400 hover:border-indigo-500/30'
+            }`}
+          >
+            {media.isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+          </button>
+          <button
+            onClick={() => setShowEndConfirm(true)}
+            className="px-4 py-2 bg-surface-100 border border-surface-200/40 text-surface-500 hover:text-red-400 hover:border-red-500/30 rounded-lg font-medium text-sm transition-all cursor-pointer"
+          >
+            End Session
+          </button>
+        </div>
       </motion.div>
 
       {/* Main content — split layout */}
       <div className="flex-1 flex flex-row relative z-10 overflow-hidden">
         {/* Left: camera + waveform + transcript (60%) */}
         <div className="w-[60%] flex flex-col items-center justify-center p-6 gap-5">
-          {/* Camera preview */}
+          {/* Camera / Screen share preview */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="relative w-full max-w-lg aspect-[4/3] bg-surface-50 rounded-2xl overflow-hidden border border-surface-200/20"
           >
+            {/* Screen share — main view when active */}
+            {media.isScreenSharing && (
+              <video
+                ref={media.screenVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-contain bg-black"
+              />
+            )}
+
+            {/* Camera — main when not sharing, PiP overlay when sharing */}
             <video
               ref={media.videoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover scale-x-[-1]"
+              className={media.isScreenSharing
+                ? 'absolute bottom-3 right-3 w-32 aspect-[4/3] object-cover scale-x-[-1] rounded-lg border border-surface-200/30 shadow-lg z-10'
+                : 'w-full h-full object-cover scale-x-[-1]'
+              }
             />
+
             {!media.isActive && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-6 h-6 border-2 border-surface-300 border-t-ember-500 rounded-full animate-spin" />
@@ -251,7 +299,7 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
             )}
 
             {/* Observation indicators */}
-            {gemini.isReady && (
+            {gemini.isReady && !media.isScreenSharing && (
               <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-md">
                   <div className="w-1.5 h-1.5 rounded-full bg-ember-500 animate-pulse" />
@@ -265,6 +313,14 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
                     Confidence
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Screen sharing indicator */}
+            {gemini.isReady && media.isScreenSharing && (
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600/60 backdrop-blur-sm rounded-md">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-pulse" />
+                <span className="text-[10px] text-indigo-200 uppercase tracking-wider font-medium">Screen Sharing</span>
               </div>
             )}
           </motion.div>
@@ -326,6 +382,7 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
           <AnalysisPanel
             analysis={analyst.analysis}
             isConnected={analyst.isReady}
+            error={analyst.error}
           />
         </div>
       </div>
