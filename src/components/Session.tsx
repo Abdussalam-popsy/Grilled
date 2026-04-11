@@ -140,6 +140,9 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
       startWaveform(audioStream)
     }
 
+    // Kick off the conversation so Gemini speaks first
+    gemini.sendText('Hi, I\'m ready to begin.')
+
     return () => {
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     }
@@ -169,14 +172,14 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
       if (!endBtnRef.current) { handleEndRef.current(); return }
       const r = endBtnRef.current.getBoundingClientRect()
       setGhostTarget({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
-    }, 600)
+    }, 400)
 
-    setTimeout(() => setGhostClicking(true), 1800)
+    setTimeout(() => setGhostClicking(true), 1200)
 
     setTimeout(() => {
       setGhostClicking(false)
       setShowEndConfirm(true)
-    }, 2100)
+    }, 1450)
 
     setTimeout(() => {
       requestAnimationFrame(() => {
@@ -186,15 +189,15 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
           setGhostTarget({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
         })
       })
-    }, 2600)
+    }, 1900)
 
-    setTimeout(() => setGhostClicking(true), 3800)
+    setTimeout(() => setGhostClicking(true), 2800)
 
     setTimeout(() => {
       setGhostClicking(false)
       setGhostActive(false)
       handleEndRef.current()
-    }, 4100)
+    }, 3050)
   }, [])
 
   useEffect(() => {
@@ -216,7 +219,7 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
     if (!responded) return
 
     autoEndingRef.current = true
-    setTimeout(() => startAutoEnd(), 5000)
+    setTimeout(() => startAutoEnd(), 2000)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gemini.transcript.length])
 
@@ -420,10 +423,10 @@ export function Session({ mode, goal, resourceContext, onEnd }: Props) {
             }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{
-              x: { duration: 1.2, ease: [0.22, 1, 0.36, 1] },
-              y: { duration: 1.2, ease: [0.22, 1, 0.36, 1] },
-              opacity: { duration: 0.4 },
-              scale: { duration: 0.15 },
+              x: { duration: 0.8, ease: [0.22, 1, 0.36, 1] },
+              y: { duration: 0.8, ease: [0.22, 1, 0.36, 1] },
+              opacity: { duration: 0.3 },
+              scale: { duration: 0.12 },
             }}
           >
             <div className="absolute -top-1 -left-1 w-8 h-8 bg-ember-500/25 rounded-full blur-lg animate-pulse" />
