@@ -5,7 +5,19 @@ import { useGeminiSession } from '../hooks/useGeminiSession'
 import { useAudioStreamer } from '../hooks/useAudioStreamer'
 import { useAnalystSession } from '../hooks/useAnalystSession'
 import { AnalysisPanel } from './AnalysisPanel'
-import type { Mode, AnswerFeedback } from '../types'
+import type { Mode, AnswerFeedback, CoachingTip } from '../types'
+
+function coachingTipsToFeedback(tips: CoachingTip[]): AnswerFeedback[] {
+  return tips.map((tip) => ({
+    question: tip.question,
+    accuracy: 0,
+    depth: 0,
+    clarity: 0,
+    strengths: tip.hints,
+    gaps: tip.key_terms.map((term) => `Key term to weave in: ${term}`),
+    coaching: tip.hints.join(' · '),
+  }))
+}
 
 const GEMINI_FAREWELL = /\b(goodbye|good\s*bye|bye|good\s+luck|best\s+of\s+luck|take\s+care|all\s+the\s+best|it\s+was\s+(great|nice|a\s+pleasure))\b/i
 
@@ -150,7 +162,7 @@ export function Session({ mode, goal, resourceContext, userName, onEnd }: Props)
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     media.stop()
     gemini.disconnect()
-    const feedbackHistory = [...analyst.analysis.history]
+    const feedbackHistory = coachingTipsToFeedback(analyst.analysis.history)
     analyst.disconnect()
     onEnd(gemini.transcript, feedbackHistory, elapsed)
   }

@@ -1,7 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { GeminiLiveSession } from '../lib/gemini'
 import { getAnalystInstruction } from '../lib/prompts'
 import type { CoachingTip, CoachingState } from '../types'
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 
 interface UseAnalystSessionReturn {
   analysis: CoachingState
@@ -13,7 +14,6 @@ interface UseAnalystSessionReturn {
 }
 
 export function useAnalystSession(): UseAnalystSessionReturn {
-  const sessionRef = useRef<GeminiLiveSession | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [analysis, setAnalysis] = useState<CoachingState>({
@@ -22,91 +22,89 @@ export function useAnalystSession(): UseAnalystSessionReturn {
     isThinking: false,
   })
 
-  const textBufferRef = useRef('')
+  const goalRef = useRef('')
   const lastFedIndexRef = useRef(0)
-
-  const tryParseJSON = useCallback((buffer: string): { parsed: CoachingTip | null; remaining: string } => {
-    const startIdx = buffer.indexOf('{')
-    if (startIdx === -1) return { parsed: null, remaining: buffer }
-
-    let braceCount = 0
-    for (let i = startIdx; i < buffer.length; i++) {
-      if (buffer[i] === '{') braceCount++
-      if (buffer[i] === '}') braceCount--
-      if (braceCount === 0) {
-        const jsonStr = buffer.slice(startIdx, i + 1)
-        try {
-          const obj = JSON.parse(jsonStr)
-          if (Array.isArray(obj.hints) && obj.hints.length > 0) {
-            const tip: CoachingTip = {
-              question: obj.question ?? '',
-              hints: obj.hints,
-              key_terms: Array.isArray(obj.key_terms) ? obj.key_terms : [],
-            }
-            return { parsed: tip, remaining: buffer.slice(i + 1) }
-          }
-        } catch {
-          // Not valid JSON yet
-        }
-        return { parsed: null, remaining: buffer.slice(i + 1) }
-      }
-    }
-
-    return { parsed: null, remaining: buffer }
-  }, [])
+  const activeRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const connect = useCallback((goal: string) => {
-    const session = new GeminiLiveSession({
-      onTextOutput: (text) => {
-        textBufferRef.current += text
-        const { parsed, remaining } = tryParseJSON(textBufferRef.current)
-        textBufferRef.current = remaining
-        if (parsed) {
-          setAnalysis(prev => ({
-            current: parsed,
-            history: [...prev.history, parsed],
-            isThinking: false,
-          }))
-        }
-      },
-      onReady: () => {
-        console.log('[Gemini:Coach] Setup complete')
-        setIsReady(true)
-      },
-      onError: (err) => {
-        console.error('[Gemini:Coach] Error:', err)
-        setError(err)
-      },
-      onClose: () => {
-        setIsReady(false)
-      },
-    })
+    goalRef.current = goal
+    activeRef.current = true
+    setIsReady(true)
+    console.log('[Analyst] Ready (REST mode)')
+  }, [])
 
-    session.connect('interview', goal, '', {
-      textOnly: true,
-      systemInstruction: getAnalystInstruction(goal),
-    })
-    sessionRef.current = session
-  }, [tryParseJSON])
+  const feedTranscript = useCallback(async (lines: string[]) => {
+    if (!activeRef.current) return
 
-  const feedTranscript = useCallback((lines: string[]) => {
-    if (!sessionRef.current?.connected) {
-      console.warn('[Analyst] feedTranscript called but session not connected')
-      return
-    }
     const newLines = lines.slice(lastFedIndexRef.current)
     if (newLines.length === 0) return
-
     lastFedIndexRef.current = lines.length
+
+    // Only call the API when there's an interviewer question to coach on
+    const hasQuestion = newLines.some(l => l.startsWith('Gemini:'))
+    if (!hasQuestion) return
+
+    // Cancel any previous in-flight request — newer question takes priority
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setAnalysis(prev => ({ ...prev, isThinking: true }))
-    sessionRef.current.sendText(newLines.join('\n'))
+
+    try {
+      // Send recent transcript for context (last 20 lines)
+      const context = lines.slice(-20).join('\n')
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: context }] }],
+          systemInstruction: { parts: [{ text: getAnalystInstruction(goalRef.current) }] },
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      })
+
+      if (!resp.ok) throw new Error(`Analyst API error: ${resp.status}`)
+
+      const result = await resp.json()
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!text) {
+        setAnalysis(prev => ({ ...prev, isThinking: false }))
+        return
+      }
+
+      const obj = JSON.parse(text)
+      if (Array.isArray(obj.hints) && obj.hints.length > 0) {
+        const tip: CoachingTip = {
+          question: obj.question ?? '',
+          hints: obj.hints,
+          key_terms: Array.isArray(obj.key_terms) ? obj.key_terms : [],
+        }
+        setAnalysis(prev => ({
+          current: tip,
+          history: [...prev.history, tip],
+          isThinking: false,
+        }))
+      } else {
+        setAnalysis(prev => ({ ...prev, isThinking: false }))
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return
+      console.error('[Analyst] Error:', err)
+      setError(err instanceof Error ? err.message : 'Analyst error')
+      setAnalysis(prev => ({ ...prev, isThinking: false }))
+    }
   }, [])
 
   const disconnect = useCallback(() => {
-    sessionRef.current?.disconnect()
-    sessionRef.current = null
+    activeRef.current = false
+    abortRef.current?.abort()
+    abortRef.current = null
     lastFedIndexRef.current = 0
-    textBufferRef.current = ''
     setIsReady(false)
   }, [])
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import type { GapReport as GapReportType, AnswerFeedback, SessionRecord } from '../types'
+import type { GapReport as GapReportType, AnswerFeedback, SessionRecord } from '../types/index.ts'
 import { generateStudyImage } from '../lib/gemini'
 import { getHistory } from '../lib/sessionHistory'
 
@@ -132,7 +132,8 @@ function QuestionBreakdown({ feedback }: { feedback: AnswerFeedback[] }) {
       </div>
       <div className="space-y-2">
         {feedback.map((f, i) => {
-          const avg = ((f.accuracy + f.depth + f.clarity) / 3).toFixed(1)
+          const hasScores = f.accuracy + f.depth + f.clarity > 0
+          const avg = hasScores ? ((f.accuracy + f.depth + f.clarity) / 3).toFixed(1) : null
           const isExpanded = expandedIdx === i
 
           return (
@@ -150,11 +151,12 @@ function QuestionBreakdown({ feedback }: { feedback: AnswerFeedback[] }) {
                 <span className="text-xs font-mono text-surface-400 w-6 shrink-0">Q{i + 1}</span>
                 <span className="text-sm text-surface-600 flex-1 leading-snug truncate">{f.question}</span>
                 <span className={`text-xs font-mono px-2 py-0.5 rounded-md shrink-0 ${
+                  avg === null ? 'bg-surface-200/30 text-surface-400' :
                   Number(avg) >= 4 ? 'bg-emerald-950/40 text-emerald-400' :
                   Number(avg) >= 3 ? 'bg-amber-950/40 text-amber-400' :
                   'bg-red-950/40 text-red-400'
                 }`}>
-                  {avg}
+                  {avg ?? 'Hints'}
                 </span>
                 <svg
                   width="12" height="12" viewBox="0 0 12 12" fill="none"
@@ -174,9 +176,13 @@ function QuestionBreakdown({ feedback }: { feedback: AnswerFeedback[] }) {
                     className="overflow-hidden"
                   >
                     <div className="px-5 pb-4 space-y-3 border-t border-surface-200/15 pt-3">
-                      <ScoreBar label="Accuracy" score={f.accuracy} />
-                      <ScoreBar label="Depth" score={f.depth} />
-                      <ScoreBar label="Clarity" score={f.clarity} />
+                      {hasScores && (
+                        <>
+                          <ScoreBar label="Accuracy" score={f.accuracy} />
+                          <ScoreBar label="Depth" score={f.depth} />
+                          <ScoreBar label="Clarity" score={f.clarity} />
+                        </>
+                      )}
 
                       {f.strengths.length > 0 && (
                         <div className="space-y-1 pt-1">
