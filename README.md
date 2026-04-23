@@ -5,8 +5,7 @@
 Grilled is a real-time AI interview and exam prep agent powered by Gemini 3.1 Flash Live API. It conducts voice-driven mock interviews and oral exams using your camera and microphone — watching your body language, detecting hesitation, and adapting questions in real time. When the session ends, it generates a structured gap report with AI-generated visual study aids and a voice debrief.
 
 
-[![Grilled Representation](https://youtu.be/KTH1s-9uebM)
-
+[![Grilled Representation](https://img.youtube.com/vi/KTH1s-9uebM/0.jpg)](https://www.youtube.com/watch?v=KTH1s-9uebM)
 ## Features
 
 - **Two modes**: Interview Prep (mock interviews) and Exam Buddy (oral exam practice)
